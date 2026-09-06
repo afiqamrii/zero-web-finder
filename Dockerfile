@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.49.1-jammy AS base
 
 # Install Node.js on top of the Playwright image (it comes with Node, but we ensure the right version/env)
-ENV NODE_ENV=production
+
 
 # 1. Install dependencies
 FROM base AS deps
