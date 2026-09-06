@@ -25,7 +25,7 @@ interface ScrapeOptions {
   lng?: number;
 }
 
-async function checkIfOutdated(url: string, browser: any): Promise<boolean> {
+async function checkIfOutdated(url: string, browser: any): Promise<{ isOutdated: boolean; email: string | null }> {
   const page = await browser.newPage();
   try {
     // Check for HTTP (no HTTPS)
