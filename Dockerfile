@@ -10,7 +10,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl
 
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # 2. Build the application
 FROM base AS builder
