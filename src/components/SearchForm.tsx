@@ -45,17 +45,13 @@ export function SearchForm({ onSearchComplete }: { onSearchComplete: (result: Se
   const { toast } = useToast();
 
   const doSearch = async (overrides?: { city?: string; category?: string; lat?: number; lng?: number }) => {
-    const finalCity = overrides?.city || city;
-    const finalCategory = overrides?.category || category;
+    const finalCity = overrides?.city !== undefined ? overrides.city : city;
+    const finalCategory = overrides?.category !== undefined ? overrides.category : category;
     const finalLat = overrides?.lat || coords?.lat;
     const finalLng = overrides?.lng || coords?.lng;
     
-    if (!finalCategory) {
-      toast({ title: 'Pick a category', description: 'Select or type a business category first.' });
-      return;
-    }
-    if (!finalCity && !finalLat) {
-      toast({ title: 'Pick a location', description: 'Enter a city or use "Near Me".' });
+    if (!finalCategory && !finalCity && !finalLat) {
+      toast({ title: 'Input required', description: 'Enter either a location or a business type.' });
       return;
     }
     
@@ -81,7 +77,7 @@ export function SearchForm({ onSearchComplete }: { onSearchComplete: (result: Se
         count: data.count,
         leads: data.leads,
         city: finalCity || 'your area',
-        category: finalCategory,
+        category: finalCategory || 'businesses',
         mode,
       });
     } catch (error: any) {
@@ -119,6 +115,10 @@ export function SearchForm({ onSearchComplete }: { onSearchComplete: (result: Se
     doSearch({ city: randomCity, category: randomCat.label });
   };
 
+  const toTitleCase = (str: string) => {
+    return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+  };
+
   return (
     <div className="space-y-4">
       {/* Mode Toggle */}
@@ -154,11 +154,15 @@ export function SearchForm({ onSearchComplete }: { onSearchComplete: (result: Se
           <label className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location</label>
           <div className="flex gap-2">
             <Input
-              placeholder="e.g. Kuala Lumpur"
+              placeholder="e.g. Kuala Lumpur (Optional)"
               value={city}
-              onChange={(e) => { setCity(e.target.value); setCoords(null); }}
+              onChange={(e) => { setCity(toTitleCase(e.target.value)); setCoords(null); }}
+              list="city-suggestions"
               className="h-10 sm:h-11 text-sm bg-background border-border"
             />
+            <datalist id="city-suggestions">
+              {CITIES.map(c => <option key={c} value={c} />)}
+            </datalist>
             <Button
               type="button"
               variant="outline"
@@ -174,11 +178,15 @@ export function SearchForm({ onSearchComplete }: { onSearchComplete: (result: Se
         <div className="space-y-1">
           <label className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">Business Type</label>
           <Input
-            placeholder="e.g. Barber, Dental Clinic"
+            placeholder="e.g. Barber, Dental Clinic (Optional)"
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) => setCategory(toTitleCase(e.target.value))}
+            list="category-suggestions"
             className="h-10 sm:h-11 text-sm bg-background border-border"
           />
+          <datalist id="category-suggestions">
+            {CATEGORIES.map(c => <option key={c.label} value={c.label} />)}
+          </datalist>
         </div>
         {/* Buttons */}
         <div className="flex gap-2 pt-1">

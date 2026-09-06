@@ -89,7 +89,10 @@ async function checkIfOutdated(url: string, browser: any): Promise<{ isOutdated:
 export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedLead[]> {
   const { city, category, limit = 10, mode = 'no_website', lat, lng } = options;
   
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ 
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+  });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 },
@@ -105,10 +108,13 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
   try {
     let searchQuery: string;
     if (lat && lng) {
-      searchQuery = encodeURIComponent(`${category} near me`);
+      searchQuery = encodeURIComponent(`${category || 'businesses'} near me`);
       await page.goto(`https://www.google.com/maps/search/${searchQuery}/@${lat},${lng},14z?hl=en`, { waitUntil: 'domcontentloaded' });
     } else {
-      searchQuery = encodeURIComponent(`${category} in ${city}`);
+      const searchParts = [];
+      if (category) searchParts.push(category);
+      if (city) searchParts.push(`in ${city}`);
+      searchQuery = encodeURIComponent(searchParts.length > 0 ? searchParts.join(' ') : 'businesses');
       await page.goto(`https://www.google.com/maps/search/${searchQuery}?hl=en`, { waitUntil: 'domcontentloaded' });
     }
     

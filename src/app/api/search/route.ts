@@ -6,11 +6,8 @@ export async function POST(request: Request) {
   try {
     const { city, category, limit, mode, lat, lng } = await request.json();
 
-    if (!category) {
-      return NextResponse.json({ error: 'Category is required' }, { status: 400 });
-    }
-    if (!city && !lat) {
-      return NextResponse.json({ error: 'City or location is required' }, { status: 400 });
+    if (!category && !city && !lat) {
+      return NextResponse.json({ error: 'Please provide either a Location or Business Type' }, { status: 400 });
     }
 
     const leads = await scrapeGoogleMaps({
