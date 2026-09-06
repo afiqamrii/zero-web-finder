@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.49.1-jammy AS base
+FROM mcr.microsoft.com/playwright:v1.63.0-jammy AS base
 
 # Install Node.js on top of the Playwright image (it comes with Node, but we ensure the right version/env)
 
