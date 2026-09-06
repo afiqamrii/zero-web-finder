@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Lead {
+  id            String   @id @default(uuid())
+  placeId       String   @unique
+  name          String
+  phone         String?
+  originalPhone String?
+  address       String
+  rating        Float?
+  reviewCount   Int?
+  mapsUrl       String
+  category      String
+  leadType      String   @default("NO_WEBSITE") // NO_WEBSITE, OUTDATED_WEBSITE
+  websiteUrl    String?
+  email         String?
+  status        String   @default("NEW") // NEW, WHATSAPP_SENT, CALL_SCHEDULED, PROPOSAL_SENT, CLOSED
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

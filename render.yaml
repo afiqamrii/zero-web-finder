@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: zero-web-finder
+    env: docker
+    region: singapore # Change to your preferred region (e.g. frankfurt, ohio, oregon, singapore)
+    plan: free # Can be upgraded to 'starter' if more RAM is needed for Playwright
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
