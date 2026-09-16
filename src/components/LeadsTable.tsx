@@ -35,28 +35,28 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; b
 };
 
 const PITCH_TEMPLATES: Record<string, string> = {
-  'Friendly': "Hi! 👋 I noticed your business on Google Maps and saw you don't have a website yet. I help local businesses get found online with professional, affordable websites. Would you be interested in a quick chat?",
-  'Madani Grant': "Hi! Did you know local businesses may be eligible for digital transformation grants? We help businesses like yours claim these grants to build professional websites. Interested to know more?",
-  'Portfolio': "Hello! I'm a web designer working with local businesses to build modern, mobile-friendly websites. Can I share some examples of my work with you?",
-  'Redesign': "Hi! I came across your business website and noticed it could benefit from a modern refresh — better mobile experience, faster loading, and a more professional look. Would you be open to a free quick audit?",
+  'Friendly': "Hi! 👋 My name is Afiq Amri, a freelance web developer. I noticed your business on Google Maps and saw you don't have a website yet. I specialise in building clean, professional, and affordable websites to help local businesses get found online. Would you be open to a quick chat about getting a website for your business?",
+  'Madani Grant': "Hi! My name is Afiq Amri, a freelance web developer. Did you know local businesses may be eligible for digital transformation grants? I help businesses like yours claim these grants to build professional websites. Interested to know more?",
+  'Portfolio': "Hello! I'm Afiq Amri, a freelance web developer working with local businesses to build modern, mobile-friendly websites. I'd love to share some examples of my work with you. Would you be interested in seeing them?",
+  'Redesign': "Hi! My name is Afiq Amri, a freelance web developer. I came across your business website and noticed it could benefit from a modern refresh — better mobile experience, faster loading, and a more professional look. Would you be open to a free quick audit?",
 };
 
 const EMAIL_TEMPLATES: Record<string, { subject: string; body: string }> = {
   'Friendly': {
     subject: 'Professional Website for {name}',
-    body: `Dear {name} team,\n\nI hope this message finds you well! I recently came across your business on Google Maps while looking for services in your area, and I was impressed by your strong reviews and reputation.\n\nI noticed that you don't currently have a website, and I wanted to reach out because I believe a professional online presence could help bring in even more customers for your business.\n\nI specialise in building clean, mobile-friendly websites for local businesses — affordable and hassle-free. I'd love to offer you a free consultation to discuss how a website could benefit {name}.\n\nWould you be open to a quick 10-minute chat this week?\n\nLooking forward to hearing from you!\n\nWarm regards`,
+    body: `Dear {name} team,\n\nI hope this message finds you well! My name is Afiq Amri, and I am a freelance web developer.\n\nI recently came across your business on Google Maps while looking for services in your area, and I was impressed by your strong reviews and reputation. I noticed that you don't currently have a website, and I wanted to reach out because I believe a professional online presence could help bring in even more customers for your business.\n\nI specialise in building clean, mobile-friendly websites for local businesses — affordable and hassle-free. Would you be interested in having a website for your business?\n\nI'd love to offer you a free consultation to discuss how a website could benefit {name}. Would you be open to a quick 10-minute chat this week?\n\nLooking forward to hearing from you!\n\nWarm regards,\nAfiq Amri\nFreelance Web Developer`,
   },
   'Madani Grant': {
     subject: 'Free Website for {name} — Digital Grant Opportunity',
-    body: `Dear {name} team,\n\nI hope you're doing well! I'm reaching out because your business may be eligible for a digital transformation grant that could cover the cost of building a professional website.\n\nUnder recent government initiatives, local businesses like yours can receive funding to establish an online presence — often at little or no cost to you.\n\nI help businesses navigate the application process and build modern, mobile-friendly websites. I'd love to walk you through how {name} can benefit from this.\n\nWould you be available for a brief call this week?\n\nBest regards`,
+    body: `Dear {name} team,\n\nI hope you're doing well! My name is Afiq Amri, and I am a freelance web developer.\n\nI'm reaching out because your business may be eligible for a digital transformation grant that could cover the cost of building a professional website.\n\nUnder recent government initiatives, local businesses like yours can receive funding to establish an online presence — often at little or no cost to you.\n\nI help businesses navigate the application process and build modern, mobile-friendly websites. I'd love to walk you through how {name} can benefit from this. Would you be interested in learning more about this opportunity?\n\nWould you be available for a brief call this week?\n\nBest regards,\nAfiq Amri\nFreelance Web Developer`,
   },
   'Portfolio': {
     subject: 'Modern Website Design for {name}',
-    body: `Dear {name} team,\n\nI'm a professional web designer who works with local businesses to build modern, beautiful websites that attract more customers.\n\nI'd love to share some examples of websites I've built for businesses similar to yours. A well-designed website can help {name} stand out online, appear in more Google searches, and make it easier for customers to find and contact you.\n\nWould you be interested in seeing some of my recent work? I'd also be happy to offer a free mockup of what your website could look like.\n\nLooking forward to connecting!\n\nBest regards`,
+    body: `Dear {name} team,\n\nI hope this email finds you well. My name is Afiq Amri, and I am a freelance web developer who works with local businesses to build modern, beautiful websites that attract more customers.\n\nI'd love to share some examples of websites I've built for businesses similar to yours. A well-designed website can help {name} stand out online, appear in more Google searches, and make it easier for customers to find and contact you.\n\nWould you be interested in seeing some of my recent work? I'd also be happy to offer a free mockup of what your website could look like.\n\nLooking forward to connecting!\n\nBest regards,\nAfiq Amri\nFreelance Web Developer`,
   },
   'Redesign': {
     subject: 'Free Website Audit for {name}',
-    body: `Dear {name} team,\n\nI came across your current website and wanted to reach out — I think there's a great opportunity to improve your online presence with a modern refresh.\n\nA few things I noticed that could be improved:\n• Mobile responsiveness\n• Loading speed\n• Overall design and user experience\n\nI'd love to offer you a free, no-obligation website audit where I'll provide specific recommendations to help {name} attract more customers online.\n\nWould you be open to receiving this audit? It only takes a few minutes of your time.\n\nWarm regards`,
+    body: `Dear {name} team,\n\nI hope you are having a great week. My name is Afiq Amri, and I am a freelance web developer.\n\nI came across your current website and wanted to reach out — I think there's a great opportunity to improve your online presence with a modern refresh.\n\nA few things I noticed that could be improved:\n• Mobile responsiveness\n• Loading speed\n• Overall design and user experience\n\nI'd love to offer you a free, no-obligation website audit where I'll provide specific recommendations to help {name} attract more customers online.\n\nWould you be open to receiving this audit? It only takes a few minutes of your time.\n\nWarm regards,\nAfiq Amri\nFreelance Web Developer`,
   },
 };
 
@@ -68,6 +68,7 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
   const [filterType, setFilterType] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   const fetchLeads = async () => {
@@ -113,13 +114,45 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
     try {
       await fetch(`/api/leads/${id}`, { method: 'DELETE' });
       setLeads(leads.filter(l => l.id !== id));
+      const next = new Set(selectedIds);
+      next.delete(id);
+      setSelectedIds(next);
     } catch { toast({ title: 'Error deleting' }); }
+  };
+
+  const bulkDeleteLeads = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} selected leads?`)) return;
+    try {
+      await fetch(`/api/leads`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) })
+      });
+      setLeads(leads.filter(l => !selectedIds.has(l.id)));
+      setSelectedIds(new Set());
+      toast({ title: 'Successfully deleted selected leads' });
+    } catch { toast({ title: 'Error deleting leads' }); }
   };
 
   const updateEmail = async (id: string, email: string) => {
     try {
       await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
       setLeads(leads.map(l => l.id === id ? { ...l, email } : l));
+    } catch { /* silent */ }
+  };
+
+  const updatePhone = async (id: string, phone: string) => {
+    try {
+      await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone }) });
+      setLeads(leads.map(l => l.id === id ? { ...l, phone } : l));
+    } catch { /* silent */ }
+  };
+
+  const updateWebsite = async (id: string, websiteUrl: string) => {
+    try {
+      await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ websiteUrl }) });
+      setLeads(leads.map(l => l.id === id ? { ...l, websiteUrl } : l));
     } catch { /* silent */ }
   };
 
@@ -148,7 +181,11 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
 
   const getWhatsAppLink = (phone: string | null) => {
     if (!phone) return '#';
-    return `https://wa.me/${phone}?text=${encodeURIComponent(PITCH_TEMPLATES[pitchType])}`;
+    let cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '6' + cleanPhone;
+    }
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(PITCH_TEMPLATES[pitchType])}`;
   };
 
   const counts = useMemo(() => {
@@ -189,8 +226,22 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
       </div>
 
       {/* Toolbar */}
-      <div className="bg-card border border-border rounded-xl p-2.5 sm:p-3 flex flex-col sm:flex-row gap-2 sm:gap-3">
-        <div className="relative flex-1">
+      <div className="bg-card border border-border rounded-xl p-2.5 sm:p-3 flex flex-col sm:flex-row gap-2 sm:gap-3 items-center">
+        <div className="flex items-center pl-1 pr-2 border-r border-border h-9 hidden sm:flex">
+          <input
+            type="checkbox"
+            className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+            checked={filteredLeads.length > 0 && selectedIds.size === filteredLeads.length}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedIds(new Set(filteredLeads.map(l => l.id)));
+              } else {
+                setSelectedIds(new Set());
+              }
+            }}
+          />
+        </div>
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search leads..."
@@ -199,7 +250,13 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
             className="pl-8 h-9 text-sm bg-background border-border"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" size="sm" onClick={bulkDeleteLeads} className="h-9 text-xs">
+              <Trash2 className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">Delete ({selectedIds.size})</span>
+            </Button>
+          )}
           <Select value={pitchType} onValueChange={(v) => setPitchType(v || 'Friendly')}>
             <SelectTrigger className="w-[110px] sm:w-[130px] h-9 bg-background border-border text-xs">
               <SelectValue />
@@ -238,10 +295,24 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
             return (
               <div key={lead.id} className="bg-card border border-border rounded-xl overflow-hidden transition-all">
                 {/* Main Row — always visible */}
-                <button
-                  className="w-full text-left p-3 sm:p-4 flex items-start gap-3 active:bg-accent/30 transition-colors"
-                  onClick={() => setExpandedId(isExpanded ? null : lead.id)}
-                >
+                <div className="w-full text-left flex items-stretch">
+                  <div className="px-3 sm:px-4 py-4 flex items-center justify-center border-r border-border/50 bg-background/50">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4 cursor-pointer"
+                      checked={selectedIds.has(lead.id)}
+                      onChange={(e) => {
+                        const next = new Set(selectedIds);
+                        if (e.target.checked) next.add(lead.id);
+                        else next.delete(lead.id);
+                        setSelectedIds(next);
+                      }}
+                    />
+                  </div>
+                  <button
+                    className="flex-1 text-left p-3 sm:p-4 flex items-start gap-3 active:bg-accent/30 transition-colors"
+                    onClick={() => setExpandedId(isExpanded ? null : lead.id)}
+                  >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-foreground truncate">{lead.name}</span>
@@ -275,22 +346,38 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
                     {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </div>
                 </button>
+              </div>
 
                 {/* Expanded Details */}
                 {isExpanded && (
                   <div className="border-t border-border px-3 sm:px-4 py-3 space-y-3 bg-accent/20">
-                    {/* Phone & Website */}
-                    {lead.phone && (
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" /> {lead.phone}
+                    {/* Phone Input */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Phone</label>
+                      <Input
+                        defaultValue={lead.phone || ''}
+                        onBlur={(e) => updatePhone(lead.id, e.target.value)}
+                        placeholder="Add phone number..."
+                        className="h-8 text-xs bg-background border-border"
+                      />
+                    </div>
+                    {/* Website Input */}
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Website</label>
+                      <div className="flex gap-2">
+                        <Input
+                          defaultValue={lead.websiteUrl || ''}
+                          onBlur={(e) => updateWebsite(lead.id, e.target.value)}
+                          placeholder="Add website URL..."
+                          className="h-8 text-xs bg-background border-border flex-1"
+                        />
+                        {lead.websiteUrl && (
+                          <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => window.open(lead.websiteUrl!, '_blank')}>
+                            <Globe className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
-                    )}
-                    {lead.websiteUrl && (
-                      <a href={lead.websiteUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-primary hover:underline inline-block truncate max-w-full">
-                        🌐 {lead.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                      </a>
-                    )}
+                    </div>
 
                     {/* Status */}
                     <div className="space-y-1">

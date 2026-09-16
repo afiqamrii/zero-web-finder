@@ -22,3 +22,26 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const data = await request.json();
+    const { ids } = data;
+
+    if (!Array.isArray(ids)) {
+      return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
+    }
+
+    const result = await prisma.lead.deleteMany({
+      where: { id: { in: ids } }
+    });
+
+    return NextResponse.json({ success: true, count: result.count });
+  } catch (error: any) {
+    console.error('Bulk delete leads error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

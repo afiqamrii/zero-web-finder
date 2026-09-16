@@ -91,9 +91,23 @@ export function ResultsPopup({ open, onClose, result }: ResultsPopupProps) {
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                      onClick={() => window.open(`https://wa.me/${lead.phone}`, '_blank')}
+                      onClick={() => {
+                        let cleanPhone = lead.phone.replace(/\D/g, '');
+                        if (cleanPhone.startsWith('0')) cleanPhone = '6' + cleanPhone;
+                        window.open(`https://wa.me/${cleanPhone}`, '_blank');
+                      }}
                     >
                       <MessageCircle className="h-3 w-3 mr-1" /> WhatsApp
+                    </Button>
+                  )}
+                  {lead.email && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs text-blue-600 border-blue-200 hover:bg-blue-50"
+                      onClick={() => window.open(`mailto:${lead.email}`, '_blank')}
+                    >
+                      <Mail className="h-3 w-3 mr-1" /> Email
                     </Button>
                   )}
                   <Button

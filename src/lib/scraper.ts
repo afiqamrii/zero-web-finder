@@ -132,69 +132,81 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
       await page.waitForTimeout(800);
     }
 
-    // Extract all results
-    const results = await page.evaluate(() => {
+    // Get all URLs from the list
+    const placeUrls = await page.evaluate(() => {
       const places = Array.from(document.querySelectorAll('.Nv2PK'));
       return places.map(place => {
         const linkEl = place.querySelector('.hfpxzc') as HTMLAnchorElement;
-        const name = linkEl?.getAttribute('aria-label') || '';
-        const url = linkEl?.href || '';
-        
-        // Check for website
-        const allText = place.innerHTML || '';
-        const hasWebsiteButton = !!place.querySelector('[data-value="Website"]');
-        
-        // Try to find website URL from the listing
-        const links = Array.from(place.querySelectorAll('a[href]'));
-        let websiteUrl: string | null = null;
-        for (const a of links) {
-          const href = (a as HTMLAnchorElement).href;
-          if (href && !href.includes('google.com') && !href.startsWith('tel:') && !href.includes('facebook.com')) {
-            websiteUrl = href;
-            break;
-          }
-        }
-        
-        const hasWebsite = hasWebsiteButton || !!websiteUrl;
-
-        const textContent = place.textContent || '';
-        
-        // Phone
-        const phoneMatch = textContent.match(/(\+?60|0)[1-9]\d{0,2}[-\s]?\d{3,4}[-\s]?\d{3,4}/);
-        const originalPhone = phoneMatch ? phoneMatch[0] : null;
-
-        // Email in Maps text (rare but happens)
-        const emailMatch = textContent.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i);
-        const extractedEmail = emailMatch ? emailMatch[1] : null;
-
-        // Rating
-        const ratingMatch = textContent.match(/(\d\.\d)\s*\(/);
-        let rating = null;
-        let reviewCount = null;
-        if (ratingMatch) {
-          rating = parseFloat(ratingMatch[1]);
-          const reviewMatch = textContent.match(/\(([\d,]+)\)/);
-          if (reviewMatch) {
-            reviewCount = parseInt(reviewMatch[1].replace(/,/g, ''), 10);
-          }
-        }
-
-        // Address - grab text after the rating/reviews area
-        const addressEl = place.querySelector('.W4Efsd:last-of-type');
-        const address = addressEl?.textContent?.replace(/^[·\s]+/, '').trim() || '';
-
-        return { name, mapsUrl: url, hasWebsite, websiteUrl, originalPhone, extractedEmail, rating, reviewCount, address };
-      });
+        return linkEl?.href || '';
+      }).filter(url => url !== '');
     });
 
-    for (const r of results) {
+    for (let i = 0; i < placeUrls.length; i++) {
+      if (leads.length >= limit) break;
+      
+      const url = placeUrls[i];
+      // Force english to make scraping consistent
+      const fullUrl = url.includes('?') ? `${url}&hl=en` : `${url}?hl=en`;
+      
+      await page.goto(fullUrl, { waitUntil: 'domcontentloaded' });
+      // wait a bit for panel to populate
+      await page.waitForTimeout(2000);
+
+      const r = await page.evaluate(() => {
+        const name = document.querySelector('h1')?.textContent || '';
+        
+        // Website
+        const websiteBtn = document.querySelector('[data-item-id="authority"]') || document.querySelector('[data-tooltip="Open website"]');
+        let websiteUrl = null;
+        if (websiteBtn) {
+            const a = websiteBtn.closest('a') || websiteBtn.querySelector('a') || websiteBtn;
+            websiteUrl = (a as any).href || null;
+            if (websiteUrl && websiteUrl.includes('google.com/url?q=')) {
+                try {
+                    const urlObj = new URL(websiteUrl);
+                    websiteUrl = urlObj.searchParams.get('q') || websiteUrl;
+                } catch { /* ignore */ }
+            }
+        }
+
+        // Phone
+        const phoneBtn = document.querySelector('[data-item-id^="phone:tel:"]') || document.querySelector('[data-tooltip="Copy phone number"]');
+        let originalPhone = phoneBtn ? (phoneBtn.textContent || '').trim() : null;
+        // Clean phone text if it has extra stuff
+        if (originalPhone && originalPhone.includes('·')) {
+            originalPhone = originalPhone.split('·')[0].trim();
+        }
+
+        // Address
+        const addressBtn = document.querySelector('[data-item-id="address"]') || document.querySelector('[data-tooltip="Copy address"]');
+        const address = addressBtn ? (addressBtn.textContent || '').trim() : '';
+        
+        // Rating
+        const ratingEl = document.querySelector('.F7nice span[aria-hidden="true"]');
+        const rating = ratingEl ? parseFloat(ratingEl.textContent || '0') : null;
+        
+        // Review Count
+        const reviewEl = document.querySelector('.F7nice span[aria-label*="reviews"]');
+        const reviewCountStr = reviewEl ? reviewEl.getAttribute('aria-label') : '';
+        const reviewCountMatch = reviewCountStr ? reviewCountStr.match(/([\d,]+)/) : null;
+        const reviewCount = reviewCountMatch ? parseInt(reviewCountMatch[1].replace(/,/g, ''), 10) : null;
+
+        // Extract email from body text just in case
+        const html = document.body.innerHTML;
+        const emailMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i);
+        const extractedEmail = emailMatch ? emailMatch[1] : null;
+
+        return { name, websiteUrl, originalPhone, address, rating, reviewCount, extractedEmail };
+      });
+
       if (!r.name) continue;
       
-      if (mode === 'no_website' && r.hasWebsite) continue;
-      if (mode === 'outdated_website' && !r.hasWebsite) continue;
-      
-      const placeIdMatch = r.mapsUrl.match(/!1s([^!]+)!/);
-      const placeId = placeIdMatch ? placeIdMatch[1] : Buffer.from(r.name + r.mapsUrl).toString('base64').slice(0, 40);
+      const hasWebsite = !!r.websiteUrl;
+      if (mode === 'no_website' && hasWebsite) continue;
+      if (mode === 'outdated_website' && !hasWebsite) continue;
+
+      const placeIdMatch = url.match(/!1s([^!]+)!/);
+      const placeId = placeIdMatch ? placeIdMatch[1] : Buffer.from(r.name + url).toString('base64').slice(0, 40);
       
       let isOutdated = false;
       let finalEmail = r.extractedEmail;
@@ -216,14 +228,12 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
         address: r.address || city,
         rating: r.rating,
         reviewCount: r.reviewCount,
-        mapsUrl: r.mapsUrl,
+        mapsUrl: url,
         category,
         leadType: mode === 'outdated_website' ? 'OUTDATED_WEBSITE' : 'NO_WEBSITE',
         websiteUrl: r.websiteUrl,
         email: finalEmail,
       });
-      
-      if (leads.length >= limit) break;
     }
 
   } catch (error) {
