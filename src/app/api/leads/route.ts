@@ -5,12 +5,22 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const starred = searchParams.get('starred');
 
-    const where = status && status !== 'ALL' ? { status } : {};
+    const where: any = {};
+    if (status && status !== 'ALL') {
+      where.status = status;
+    }
+    if (starred === 'true') {
+      where.isStarred = true;
+    }
 
     const leads = await prisma.lead.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { isStarred: 'desc' },
+        { createdAt: 'desc' },
+      ],
     });
 
     return NextResponse.json({ success: true, leads });

@@ -27,6 +27,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import Papa from 'papaparse';
 import { WhatsAppModal, WhatsAppLead } from './WhatsAppModal';
+import { BusinessIntelModal } from './BusinessIntelModal';
 
 export interface Lead {
   id: string;
@@ -43,6 +44,14 @@ export interface Lead {
   leadType: string;
   websiteUrl: string | null;
   imageUrl?: string | null;
+  description?: string | null;
+  openingHours?: string | null;
+  services?: string | null;
+  photos?: string | null;
+  topReviews?: string | null;
+  socialLinks?: string | null;
+  demoUrl?: string | null;
+  isStarred?: boolean;
   email: string | null;
 }
 
@@ -65,6 +74,7 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
   const [activeWhatsAppLead, setActiveWhatsAppLead] = useState<WhatsAppLead | null>(null);
+  const [activeIntelLead, setActiveIntelLead] = useState<Lead | null>(null);
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -87,8 +97,12 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
   }, [refreshTrigger]);
 
   const filteredLeads = useMemo(() => {
-    return leads.filter((l) => {
-      const matchStatus = filterStatus === 'ALL' || l.status === filterStatus;
+    const list = leads.filter((l) => {
+      const matchStatus = filterStatus === 'ALL'
+        ? true
+        : filterStatus === 'STARRED'
+        ? l.isStarred
+        : l.status === filterStatus;
       const matchType = filterType === 'ALL' || l.leadType === filterType;
       const matchSearch =
         searchQuery === '' ||
@@ -98,7 +112,33 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
         (l.phone && l.phone.includes(searchQuery));
       return matchStatus && matchType && matchSearch;
     });
+
+    // High Priority / Starred leads always bubble to the top
+    return [...list].sort((a, b) => {
+      if (a.isStarred && !b.isStarred) return -1;
+      if (!a.isStarred && b.isStarred) return 1;
+      return 0;
+    });
   }, [leads, filterStatus, filterType, searchQuery]);
+
+  const toggleStarred = async (id: string, name: string, currentStarred?: boolean) => {
+    const newStarred = !currentStarred;
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, isStarred: newStarred } : l));
+    try {
+      await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isStarred: newStarred })
+      });
+      toast({
+        title: newStarred ? '⭐ Starred as High Priority' : 'Lead unstarred',
+        description: newStarred ? `"${name}" pinned to top of leads` : `"${name}" removed from high priority`,
+      });
+    } catch {
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, isStarred: currentStarred } : l));
+      toast({ title: 'Failed to update priority', variant: 'destructive' });
+    }
+  };
 
   const updateStatus = async (id: string, status: string) => {
     try {
@@ -207,9 +247,10 @@ If you’re open to it, I can prepare a quick website concept for your business 
   };
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { ALL: leads.length, NO_WEBSITE: 0, OUTDATED_WEBSITE: 0 };
+    const c: Record<string, number> = { ALL: leads.length, STARRED: 0, NO_WEBSITE: 0, OUTDATED_WEBSITE: 0 };
     STATUSES.forEach(s => c[s] = 0);
     leads.forEach(l => {
+      if (l.isStarred) c.STARRED++;
       if (c[l.status] !== undefined) c[l.status]++;
       if (c[l.leadType] !== undefined) c[l.leadType]++;
     });
@@ -226,26 +267,56 @@ If you’re open to it, I can prepare a quick website concept for your business 
         onStatusUpdate={(id, status) => updateStatus(id, status)}
       />
 
+      {/* Business Intel & AI Prompt Modal */}
+      <BusinessIntelModal
+        open={!!activeIntelLead}
+        onClose={() => setActiveIntelLead(null)}
+        lead={activeIntelLead}
+        onUpdateDemoUrl={(id, demoUrl) => {
+          setLeads(leads.map(l => l.id === id ? { ...l, demoUrl } : l));
+        }}
+        onOpenWhatsApp={(lead) => {
+          setActiveWhatsAppLead(lead);
+        }}
+      />
+
       {/* Filter chips — Apple style rounded pills */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-3 px-3 sm:mx-0 sm:px-0 sm:flex-wrap scrollbar-none">
         {[
           { key: 'ALL', label: `All (${counts.ALL})`, isType: true },
+          { key: 'STARRED', label: `⭐ High Priority (${counts.STARRED})`, isStarred: true },
           { key: 'NO_WEBSITE', label: `No Site (${counts.NO_WEBSITE})`, isType: true },
           { key: 'OUTDATED_WEBSITE', label: `Outdated (${counts.OUTDATED_WEBSITE})`, isType: true },
           ...STATUSES.map(s => ({ key: s, label: `${STATUS_CONFIG[s].label} (${counts[s] || 0})`, isType: false })),
         ].map((item) => {
-          const isActive = item.isType ? filterType === item.key : filterStatus === item.key;
+          const isActive = item.isStarred
+            ? filterStatus === 'STARRED'
+            : item.isType
+            ? filterType === item.key && filterStatus !== 'STARRED'
+            : filterStatus === item.key;
           return (
             <button
               key={item.key}
               type="button"
               onClick={() => {
-                if (item.isType) { setFilterType(item.key); setFilterStatus('ALL'); }
-                else { setFilterStatus(item.key); setFilterType('ALL'); }
+                if (item.isStarred) {
+                  setFilterStatus(filterStatus === 'STARRED' ? 'ALL' : 'STARRED');
+                  setFilterType('ALL');
+                } else if (item.isType) {
+                  setFilterType(item.key);
+                  setFilterStatus('ALL');
+                } else {
+                  setFilterStatus(item.key);
+                  setFilterType('ALL');
+                }
               }}
               className={`px-3.5 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 transition-all border active:scale-95 ${
                 isActive
-                  ? 'bg-[#1D1D1F] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
+                  ? item.isStarred
+                    ? 'bg-amber-500 border-amber-600 text-white shadow-[0_2px_8px_rgba(245,158,11,0.25)]'
+                    : 'bg-[#1D1D1F] border-transparent text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)]'
+                  : item.isStarred && counts.STARRED > 0
+                  ? 'bg-amber-50/90 border-amber-200 text-amber-800 hover:bg-amber-100 font-semibold'
                   : 'bg-white/80 border-black/[0.06] text-[#48484A] hover:text-[#1D1D1F] hover:bg-white'
               }`}
             >
@@ -366,8 +437,10 @@ If you’re open to it, I can prepare a quick website concept for your business 
             return (
               <div
                 key={lead.id}
-                className={`bg-white/95 backdrop-blur-md border rounded-3xl p-5 transition-all duration-200 flex flex-col justify-between space-y-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 ${
-                  isSelected
+                className={`bg-white/95 backdrop-blur-md border rounded-3xl p-5 transition-all duration-200 flex flex-col justify-between space-y-4 hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 overflow-hidden relative ${
+                  lead.isStarred
+                    ? 'border-amber-400/60 shadow-[0_4px_24px_rgba(245,158,11,0.08)] bg-gradient-to-b from-amber-500/[0.03] to-white/95 ring-1 ring-amber-400/30'
+                    : isSelected
                     ? 'border-[#1D1D1F] ring-1 ring-[#1D1D1F]'
                     : 'border-black/[0.06] shadow-[0_2px_12px_rgba(0,0,0,0.03)]'
                 }`}
@@ -417,6 +490,15 @@ If you’re open to it, I can prepare a quick website concept for your business 
                             setSelectedIds(next);
                           }}
                         />
+                        {/* Star / High Priority Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => toggleStarred(lead.id, lead.name, lead.isStarred)}
+                          title={lead.isStarred ? 'Starred (Highest closing probability) - Click to unstar' : 'Star this lead (Highest closing probability)'}
+                          className="p-1 -ml-0.5 rounded-full hover:bg-amber-100/70 transition-colors shrink-0 group"
+                        >
+                          <Star className={`h-4 w-4 transition-transform group-hover:scale-110 ${lead.isStarred ? 'fill-amber-400 text-amber-500' : 'text-gray-300 hover:text-amber-400'}`} />
+                        </button>
                         <h3 className="font-semibold text-base text-[#1D1D1F] tracking-tight truncate" title={lead.name}>
                           {lead.name}
                         </h3>
@@ -424,6 +506,12 @@ If you’re open to it, I can prepare a quick website concept for your business 
 
                       {/* Badges: Category & Lead Type (show if no image banner) */}
                       <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        {lead.isStarred && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 border border-amber-400/40 flex items-center gap-1 shadow-xs">
+                            <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                            High Potential
+                          </span>
+                        )}
                         <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-[#F5F5F7] text-[#48484A]">
                           {lead.category || 'Business'}
                         </span>
@@ -532,6 +620,21 @@ If you’re open to it, I can prepare a quick website concept for your business 
                         </a>
                       </div>
                     )}
+                    {lead.demoUrl && (
+                      <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-700">
+                        <span className="font-semibold flex items-center gap-1 shrink-0">
+                          <Sparkles className="h-3 w-3 text-purple-600" /> Demo Ready
+                        </span>
+                        <a
+                          href={lead.demoUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="hover:underline truncate max-w-[160px] text-purple-800 font-medium"
+                        >
+                          {lead.demoUrl.replace(/^https?:\/\//, '')}
+                        </a>
+                      </div>
+                    )}
                   </div>
 
                   {/* Notes snippet or inline editor */}
@@ -566,47 +669,45 @@ If you’re open to it, I can prepare a quick website concept for your business 
                 </div>
 
                 {/* Bottom Actions Bar */}
-                <div className="pt-3 border-t border-black/[0.04] flex items-center gap-2">
+                <div className="pt-3 border-t border-black/[0.04] flex items-center gap-1.5 min-w-0">
                   {/* WhatsApp Customizer Button */}
                   <Button
                     type="button"
                     size="sm"
                     disabled={!lead.phone}
                     onClick={() => setActiveWhatsAppLead(lead)}
-                    className="flex-1 h-9 rounded-full text-xs font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-[0_2px_8px_rgba(37,211,102,0.25)] transition-all hover:scale-[1.01] active:scale-[0.99]"
+                    className="flex-1 min-w-0 h-9 rounded-full text-xs font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-[0_2px_8px_rgba(37,211,102,0.25)] transition-all hover:scale-[1.01] active:scale-[0.99] px-3 truncate"
                   >
-                    <MessageCircle className="h-3.5 w-3.5 mr-1" />
-                    WhatsApp
+                    <MessageCircle className="h-3.5 w-3.5 mr-1 shrink-0" />
+                    <span className="truncate">WhatsApp</span>
                   </Button>
 
-                  {/* Quick 1-click Direct WhatsApp */}
-                  {lead.phone && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => quickSendWhatsApp(lead)}
-                      title="Quick Direct WhatsApp (Default Template)"
-                      className="h-9 w-9 p-0 rounded-full border-black/[0.08] hover:bg-emerald-50 text-emerald-600 shrink-0"
-                    >
-                      <Send className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
+                  {/* Business Intel & AI Demo Prompt Button */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setActiveIntelLead(lead)}
+                    title="View Business Intel & Generate AI Demo Prompt"
+                    className="h-9 px-2.5 sm:px-3 rounded-full border-black/[0.08] hover:bg-purple-50 hover:text-purple-700 hover:border-purple-200 text-[#1D1D1F] shrink-0 text-xs font-medium"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-1 text-purple-600 shrink-0" />
+                    <span>Intel</span>
+                  </Button>
 
-                  {/* Google Maps Button */}
+                  {/* Google Maps Button (Icon) */}
                   <Button
                     type="button"
                     size="sm"
                     variant="outline"
                     onClick={() => window.open(lead.mapsUrl, '_blank')}
                     title="Open on Google Maps"
-                    className="h-9 px-3 rounded-full border-black/[0.08] hover:bg-[#F5F5F7] text-[#1D1D1F] shrink-0 text-xs font-medium"
+                    className="h-9 w-9 p-0 rounded-full border-black/[0.08] hover:bg-[#F5F5F7] text-[#1D1D1F] shrink-0"
                   >
-                    <ExternalLink className="h-3.5 w-3.5 mr-1 text-[#86868B]" />
-                    Maps
+                    <ExternalLink className="h-3.5 w-3.5 text-[#86868B]" />
                   </Button>
 
-                  {/* Delete Button */}
+                  {/* Delete Button (Icon) */}
                   <Button
                     type="button"
                     size="sm"
@@ -629,7 +730,7 @@ If you’re open to it, I can prepare a quick website concept for your business 
             <table className="w-full text-left text-sm">
               <thead className="bg-[#F5F5F7] text-[11px] uppercase tracking-wider text-[#86868B] border-b border-black/[0.06]">
                 <tr>
-                  <th className="p-3 w-10"></th>
+                  <th className="p-3 w-16"></th>
                   <th className="p-3 font-semibold">Business</th>
                   <th className="p-3 font-semibold">Category</th>
                   <th className="p-3 font-semibold">Phone</th>
@@ -640,19 +741,29 @@ If you’re open to it, I can prepare a quick website concept for your business 
               </thead>
               <tbody className="divide-y divide-black/[0.04]">
                 {filteredLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-[#F5F5F7]/50 transition-colors">
+                  <tr key={lead.id} className={`transition-colors ${lead.isStarred ? 'bg-amber-500/[0.03] hover:bg-amber-500/[0.06]' : 'hover:bg-[#F5F5F7]/50'}`}>
                     <td className="p-3">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-[#1D1D1F] focus:ring-[#1D1D1F] h-4 w-4 cursor-pointer"
-                        checked={selectedIds.has(lead.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedIds);
-                          if (e.target.checked) next.add(lead.id);
-                          else next.delete(lead.id);
-                          setSelectedIds(next);
-                        }}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-[#1D1D1F] focus:ring-[#1D1D1F] h-4 w-4 cursor-pointer"
+                          checked={selectedIds.has(lead.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedIds);
+                            if (e.target.checked) next.add(lead.id);
+                            else next.delete(lead.id);
+                            setSelectedIds(next);
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => toggleStarred(lead.id, lead.name, lead.isStarred)}
+                          title={lead.isStarred ? 'Starred - Click to unstar' : 'Star this lead'}
+                          className="p-1 rounded-full hover:bg-amber-100/70 transition-colors shrink-0 group"
+                        >
+                          <Star className={`h-3.5 w-3.5 transition-transform group-hover:scale-110 ${lead.isStarred ? 'fill-amber-400 text-amber-500' : 'text-gray-300 hover:text-amber-400'}`} />
+                        </button>
+                      </div>
                     </td>
                     <td className="p-3 font-medium text-[#1D1D1F]">
                       <div className="flex items-center gap-2.5">
@@ -697,6 +808,15 @@ If you’re open to it, I can prepare a quick website concept for your business 
                     </td>
                     <td className="p-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setActiveIntelLead(lead)}
+                          title="View Business Intel & Demo Prompt"
+                          className="h-8 px-2.5 rounded-full border-black/[0.08] hover:bg-purple-50 hover:text-purple-700 text-xs font-medium"
+                        >
+                          <Sparkles className="h-3 w-3 text-purple-600 mr-1" /> Intel
+                        </Button>
                         <Button
                           size="sm"
                           disabled={!lead.phone}

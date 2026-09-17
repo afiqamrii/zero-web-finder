@@ -35,6 +35,12 @@ export async function POST(request: Request) {
           leadType: lead.leadType,
           websiteUrl: lead.websiteUrl,
           imageUrl: lead.imageUrl,
+          description: lead.description,
+          openingHours: lead.openingHours,
+          services: lead.services,
+          photos: lead.photos,
+          topReviews: lead.topReviews,
+          socialLinks: lead.socialLinks,
           email: lead.email,
         },
         create: {
@@ -50,6 +56,12 @@ export async function POST(request: Request) {
           leadType: lead.leadType,
           websiteUrl: lead.websiteUrl,
           imageUrl: lead.imageUrl,
+          description: lead.description,
+          openingHours: lead.openingHours,
+          services: lead.services,
+          photos: lead.photos,
+          topReviews: lead.topReviews,
+          socialLinks: lead.socialLinks,
           email: lead.email,
         }
       });

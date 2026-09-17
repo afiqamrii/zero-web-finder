@@ -22,8 +22,16 @@ model Lead {
   leadType      String   @default("NO_WEBSITE") // NO_WEBSITE, OUTDATED_WEBSITE
   websiteUrl    String?
   imageUrl      String?
+  description   String?
+  openingHours  String?
+  services      String?  // JSON array string
+  photos        String?  // JSON array string of photo URLs
+  topReviews    String?  // JSON array string of review snippets
+  socialLinks   String?  // JSON object string
+  demoUrl       String?
   email         String?
   status        String   @default("NEW") // NEW, WHATSAPP_SENT, CALL_SCHEDULED, PROPOSAL_SENT, CLOSED
+  isStarred     Boolean  @default(false)
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

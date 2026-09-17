@@ -14,6 +14,12 @@ export interface ScrapedLead {
   leadType: 'NO_WEBSITE' | 'OUTDATED_WEBSITE';
   websiteUrl: string | null;
   imageUrl: string | null;
+  description: string | null;
+  openingHours: string | null;
+  services: string | null; // JSON array string
+  photos: string | null; // JSON array string of photo URLs
+  topReviews: string | null; // JSON array string of review snippets
+  socialLinks: string | null; // JSON object string
   email: string | null;
 }
 
@@ -223,6 +229,15 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
         await page.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 12000 });
         await page.waitForTimeout(1400);
 
+        // Try clicking hours button to expand full week schedule
+        try {
+          const hoursBtn = await page.$('[data-item-id*="oh"], button[aria-label*="hours" i], button[aria-label*="open" i], button[aria-label*="closed" i]');
+          if (hoursBtn) {
+            await hoursBtn.click();
+            await page.waitForTimeout(500);
+          }
+        } catch {}
+
         const r = await page.evaluate(() => {
           const detailTitle = document.querySelector('.DUwDvf, h1.DUwDvf, [role="main"] h1');
           const panelName = detailTitle?.textContent?.trim() || '';
@@ -275,15 +290,100 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
           const heroImg = document.querySelector('button[jsaction*="pane.heroHeaderImage"] img, [data-photo-index] img') as HTMLImageElement | null;
           let panelImg = heroImg?.src || null;
           if (panelImg && panelImg.includes('=w')) {
-            panelImg = panelImg.replace(/=w\d+-h\d+[^&]*/, '=w600-h400-k-no');
+            panelImg = panelImg.replace(/=w\d+-h\d+[^&]*/, '=w800-h600-k-no');
           }
+
+          // Gallery photos (up to 6 high-res images)
+          const allImgs = Array.from(document.querySelectorAll('button[jsaction*="heroHeaderImage"] img, [data-photo-index] img, img[src*="googleusercontent.com"], img[src*="ggpht.com"]')) as HTMLImageElement[];
+          const photos = Array.from(new Set(
+            allImgs
+              .map(img => img.src)
+              .filter(src => src && (src.includes('googleusercontent.com') || src.includes('ggpht.com')))
+              .map(src => src.replace(/=w\d+-h\d+[^&]*/, '=w800-h600-k-no'))
+          )).slice(0, 6);
+
+          // Description / About editorial
+          const descEl = document.querySelector('div.PYvSYb, [data-item-id="desc"], .fontBodyMedium.kR99db, div.WeS02d, div.HlvSq');
+          let description = descEl?.textContent?.trim() || null;
+          if (description && (description.startsWith('Located in:') || description.length < 10)) {
+            description = null;
+          }
+
+          // Opening Hours
+          let openingHours: string | null = null;
+          const hoursTable = document.querySelector('table.eK7r0e, table[class*="hours" i], [data-item-id*="oh"] table, table');
+          if (hoursTable) {
+            const rows = Array.from(hoursTable.querySelectorAll('tr'));
+            const lines = rows.map(r => {
+              const cells = Array.from(r.querySelectorAll('td, th')).map(c => c.textContent?.trim() || '');
+              return cells.filter(Boolean).join(': ').replace(/[\uE000-\uF8FF]/g, '').trim();
+            }).filter(Boolean);
+            if (lines.length > 0) {
+              openingHours = lines.join('\n');
+            }
+          }
+          if (!openingHours) {
+            const ohEl = document.querySelector('[data-item-id*="oh"]');
+            const rawOh = ohEl?.getAttribute('aria-label') || ohEl?.textContent?.trim() || null;
+            if (rawOh) {
+              openingHours = rawOh.replace(/[\uE000-\uF8FF]/g, '').trim();
+            }
+          }
+
+          // Services / Offerings / Attributes chips
+          const serviceEls = Array.from(document.querySelectorAll('.LTs0fc, div.E0dtEd div, div[aria-label*="Services" i] div, div[aria-label*="Offerings" i] div, div[aria-label*="Highlights" i] div'));
+          const services = Array.from(new Set(
+            serviceEls
+              .map(el => el.textContent?.replace(/[\uE000-\uF8FF]/g, '').trim() || '')
+              .filter(t => t.length > 2 && t.length < 40 && !t.includes('Reviews') && !t.includes('Directions') && !t.includes('Save') && !t.includes('Share') && !t.includes('Website') && !t.includes('Phone') && !t.includes('Photos') && !/\d+\.\d+\(/.test(t))
+          )).slice(0, 10);
+
+          // Top Reviews
+          const reviewCards = Array.from(document.querySelectorAll('div.jftiEf, div.MyEned, [data-review-id]'));
+          const topReviews = reviewCards.map(c => {
+            const author = c.querySelector('.d4r55, .fontTitleSmall')?.textContent?.trim() || 'Customer';
+            const ratingEl = c.querySelector('[aria-label*="star" i]');
+            const ratingMatch = ratingEl?.getAttribute('aria-label')?.match(/\d+/);
+            const rating = ratingMatch ? parseInt(ratingMatch[0], 10) : 5;
+            const text = c.querySelector('.wiI7m, .MyEned')?.textContent?.trim() || '';
+            return text && text.length > 15 ? { author, rating, text: text.slice(0, 250) } : null;
+          }).filter(Boolean).slice(0, 3);
+
+          // Social Links (Instagram, Facebook, TikTok)
+          const allLinks = Array.from(document.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+          let instagram: string | null = null;
+          let facebook: string | null = null;
+          let tiktok: string | null = null;
+          for (const a of allLinks) {
+            const h = a.href || '';
+            if (h.includes('instagram.com/')) instagram = h;
+            if (h.includes('facebook.com/')) facebook = h;
+            if (h.includes('tiktok.com/')) tiktok = h;
+          }
+          const hasSocials = instagram || facebook || tiktok;
+          const socialLinks = hasSocials ? { instagram, facebook, tiktok } : null;
 
           // Extract email from body text
           const html = document.body.innerHTML;
           const emailMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i);
           const extractedEmail = emailMatch ? emailMatch[1] : null;
 
-          return { panelName, websiteUrl, originalPhone, address, rating, reviewCount, panelImg, extractedEmail };
+          return {
+            panelName,
+            websiteUrl,
+            originalPhone,
+            address,
+            rating,
+            reviewCount,
+            panelImg,
+            photos,
+            description,
+            openingHours,
+            services,
+            topReviews,
+            socialLinks,
+            extractedEmail
+          };
         });
 
         const businessName = (r.panelName && r.panelName !== 'Results') ? r.panelName : item.name;
@@ -295,7 +395,7 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
 
         const effectivePhone = r.originalPhone || item.cardPhone;
         const cleanPhone = sanitizePhone(effectivePhone);
-        const finalImage = r.panelImg || item.imageUrl || null;
+        const finalImage = r.panelImg || item.imageUrl || (r.photos && r.photos[0]) || null;
 
         const placeIdMatch = item.href.match(/!1s([^!]+)!/);
         const placeId = placeIdMatch ? placeIdMatch[1] : Buffer.from(businessName + item.href).toString('base64').slice(0, 40);
@@ -325,10 +425,16 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
           leadType: mode === 'outdated_website' ? 'OUTDATED_WEBSITE' : 'NO_WEBSITE',
           websiteUrl: r.websiteUrl,
           imageUrl: finalImage,
+          description: r.description,
+          openingHours: r.openingHours,
+          services: r.services && r.services.length > 0 ? JSON.stringify(r.services) : null,
+          photos: r.photos && r.photos.length > 0 ? JSON.stringify(r.photos) : null,
+          topReviews: r.topReviews && r.topReviews.length > 0 ? JSON.stringify(r.topReviews) : null,
+          socialLinks: r.socialLinks ? JSON.stringify(r.socialLinks) : null,
           email: finalEmail,
         });
 
-        console.log(`[Scraped ${leads.length}/${limit}] ${businessName} | Phone: ${cleanPhone || 'None'} | Image: ${finalImage ? 'Yes' : 'No'}`);
+        console.log(`[Scraped ${leads.length}/${limit}] ${businessName} | Phone: ${cleanPhone || 'None'} | Photos: ${r.photos?.length || 0} | Hours: ${r.openingHours ? 'Yes' : 'No'}`);
       } catch (err: any) {
         console.log(`Error checking place ${item.name}:`, err.message);
       }

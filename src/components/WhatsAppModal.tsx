@@ -13,6 +13,7 @@ export interface WhatsAppLead {
   category: string;
   leadType?: string;
   websiteUrl?: string | null;
+  demoUrl?: string | null;
 }
 
 interface WhatsAppModalProps {
@@ -24,31 +25,36 @@ interface WhatsAppModalProps {
 
 export function WhatsAppModal({ open, onClose, lead, onStatusUpdate }: WhatsAppModalProps) {
   const { toast } = useToast();
-  const [templateKey, setTemplateKey] = useState<'opener' | 'followup' | 'full' | 'redesign'>('opener');
+  const [templateKey, setTemplateKey] = useState<'teaser' | 'send_demo' | 'refine' | 'opener' | 'redesign'>('teaser');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Generate templates
+  const getTeaserTemplate = (bizName: string) => {
+    return `Hi, I’m Afiq Amri, a freelance web developer.
+
+I came across ${bizName} on Google Maps and noticed you don't currently have a website. I actually put together a quick website concept based on your business.
+
+Would you like me to share the link for you to have a look? ☺️`;
+  };
+
+  const getSendDemoTemplate = (bizName: string, demoUrl?: string | null) => {
+    const link = demoUrl || '[paste your demo link here]';
+    return `Here it is! 👉 ${link}
+
+I set up a clean mobile layout with your services, hours, and direct WhatsApp booking for ${bizName}.
+
+Have a look whenever you're free, and let me know what you think!`;
+  };
+
+  const getRefineTemplate = () => {
+    return `If you like the direction, we can easily connect it to your official domain and add any real pricing or extra photos you want so you can start getting direct bookings online.`;
+  };
+
   const getOpenerTemplate = (bizName: string) => {
     return `Hi, I’m Afiq Amri, a freelance web developer.
 
 I came across ${bizName} on Google Maps and noticed that you don’t have a website at the moment, is that right? ☺️`;
-  };
-
-  const getFollowUpTemplate = (bizName: string) => {
-    return `Got it. I specialise in helping local businesses set up professional websites.
-
-I had a few ideas for how ${bizName} could present itself online. If you'd like, I can put together a quick concept for you to see.`;
-  };
-
-  const getFullTemplate = (bizName: string) => {
-    return `Hi, I’m Afiq Amri, a freelance web developer.
-
-I came across ${bizName} on Google Maps and noticed that you don’t have a website at the moment.
-
-I specialise in helping local businesses set up professional websites, and I had a few ideas for how ${bizName} could present itself online.
-
-If you'd like, I’d be happy to put together a quick concept for you to have a look at.`;
   };
 
   const getRedesignTemplate = (bizName: string) => {
@@ -66,20 +72,22 @@ I specialise in modernising websites to make them fast and look great on mobile.
       setTemplateKey('redesign');
       setMessage(getRedesignTemplate(lead.name));
     } else {
-      setTemplateKey('opener');
-      setMessage(getOpenerTemplate(lead.name));
+      setTemplateKey('teaser');
+      setMessage(getTeaserTemplate(lead.name));
     }
   }, [lead]);
 
-  const handleSelectTemplate = (key: 'opener' | 'followup' | 'full' | 'redesign') => {
+  const handleSelectTemplate = (key: 'teaser' | 'send_demo' | 'refine' | 'opener' | 'redesign') => {
     if (!lead) return;
     setTemplateKey(key);
-    if (key === 'opener') {
+    if (key === 'teaser') {
+      setMessage(getTeaserTemplate(lead.name));
+    } else if (key === 'send_demo') {
+      setMessage(getSendDemoTemplate(lead.name, lead.demoUrl));
+    } else if (key === 'refine') {
+      setMessage(getRefineTemplate());
+    } else if (key === 'opener') {
       setMessage(getOpenerTemplate(lead.name));
-    } else if (key === 'followup') {
-      setMessage(getFollowUpTemplate(lead.name));
-    } else if (key === 'full') {
-      setMessage(getFullTemplate(lead.name));
     } else if (key === 'redesign') {
       setMessage(getRedesignTemplate(lead.name));
     }
@@ -170,13 +178,13 @@ I specialise in modernising websites to make them fast and look great on mobile.
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#F5F5F7] rounded-2xl border border-black/[0.04]">
+          <div className="grid grid-cols-4 gap-1 p-1 bg-[#F5F5F7] rounded-2xl border border-black/[0.04]">
             {lead.leadType === 'OUTDATED_WEBSITE' ? (
               <>
                 <button
                   type="button"
                   onClick={() => handleSelectTemplate('redesign')}
-                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
                     templateKey === 'redesign'
                       ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
                       : 'text-[#86868B] hover:text-[#1D1D1F]'
@@ -186,61 +194,83 @@ I specialise in modernising websites to make them fast and look great on mobile.
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSelectTemplate('opener')}
-                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
-                    templateKey === 'opener'
+                  onClick={() => handleSelectTemplate('teaser')}
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
+                    templateKey === 'teaser'
                       ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
                       : 'text-[#86868B] hover:text-[#1D1D1F]'
                   }`}
                 >
-                  1. Opener
+                  1. Teaser
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSelectTemplate('followup')}
-                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
-                    templateKey === 'followup'
+                  onClick={() => handleSelectTemplate('send_demo')}
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
+                    templateKey === 'send_demo'
                       ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
                       : 'text-[#86868B] hover:text-[#1D1D1F]'
                   }`}
                 >
-                  2. Follow-Up
+                  2. Demo Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('refine')}
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
+                    templateKey === 'refine'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  3. Refine
                 </button>
               </>
             ) : (
               <>
                 <button
                   type="button"
+                  onClick={() => handleSelectTemplate('teaser')}
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
+                    templateKey === 'teaser'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  1. Teaser
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('send_demo')}
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
+                    templateKey === 'send_demo'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  2. Demo Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('refine')}
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
+                    templateKey === 'refine'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  3. Refine
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleSelectTemplate('opener')}
-                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                  className={`text-xs py-2 px-1 rounded-xl font-medium transition-all text-center ${
                     templateKey === 'opener'
                       ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
                       : 'text-[#86868B] hover:text-[#1D1D1F]'
                   }`}
                 >
-                  1. Opener
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectTemplate('followup')}
-                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
-                    templateKey === 'followup'
-                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
-                      : 'text-[#86868B] hover:text-[#1D1D1F]'
-                  }`}
-                >
-                  2. Follow-Up
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectTemplate('full')}
-                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
-                    templateKey === 'full'
-                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
-                      : 'text-[#86868B] hover:text-[#1D1D1F]'
-                  }`}
-                >
-                  Full Pitch
+                  Question
                 </button>
               </>
             )}
