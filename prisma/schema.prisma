@@ -21,6 +21,7 @@ model Lead {
   category      String
   leadType      String   @default("NO_WEBSITE") // NO_WEBSITE, OUTDATED_WEBSITE
   websiteUrl    String?
+  imageUrl      String?
   email         String?
   status        String   @default("NEW") // NEW, WHATSAPP_SENT, CALL_SCHEDULED, PROPOSAL_SENT, CLOSED
   notes         String?

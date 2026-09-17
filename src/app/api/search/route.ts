@@ -34,6 +34,7 @@ export async function POST(request: Request) {
           category: lead.category,
           leadType: lead.leadType,
           websiteUrl: lead.websiteUrl,
+          imageUrl: lead.imageUrl,
           email: lead.email,
         },
         create: {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
           category: lead.category,
           leadType: lead.leadType,
           websiteUrl: lead.websiteUrl,
+          imageUrl: lead.imageUrl,
           email: lead.email,
         }
       });

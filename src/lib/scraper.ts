@@ -13,6 +13,7 @@ export interface ScrapedLead {
   category: string;
   leadType: 'NO_WEBSITE' | 'OUTDATED_WEBSITE';
   websiteUrl: string | null;
+  imageUrl: string | null;
   email: string | null;
 }
 
@@ -91,17 +92,42 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
   
   const browser = await chromium.launch({ 
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-web-security',
+      '--disable-features=IsolateOrigins,site-per-process'
+    ]
   });
+
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    viewport: { width: 1280, height: 800 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    viewport: { width: 1366, height: 768 },
+    locale: 'en-US',
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-US,en;q=0.9'
+    },
     ...(lat && lng ? {
       geolocation: { latitude: lat, longitude: lng },
       permissions: ['geolocation'],
     } : {}),
   });
+
+  // Pre-set consent cookies so Google consent dialog never interrupts
+  await context.addCookies([
+    { name: 'CONSENT', value: 'PENDING+999', domain: '.google.com', path: '/' },
+    { name: 'SOCS', value: 'CAESEwgDEgk2ODEwNjM5ODQaAmVuIAEaBgiA_L20Bg', domain: '.google.com', path: '/' }
+  ]);
+
   const page = await context.newPage();
+
+  // Stealth: hide webdriver flag
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    (window as any).chrome = { runtime: {} };
+  });
   
   const leads: ScrapedLead[] = [];
   
@@ -109,131 +135,203 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
     let searchQuery: string;
     if (lat && lng) {
       searchQuery = encodeURIComponent(`${category || 'businesses'} near me`);
-      await page.goto(`https://www.google.com/maps/search/${searchQuery}/@${lat},${lng},14z?hl=en`, { waitUntil: 'domcontentloaded' });
+      await page.goto(`https://www.google.com/maps/search/${searchQuery}/@${lat},${lng},14z?hl=en`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000
+      });
     } else {
       const searchParts = [];
       if (category) searchParts.push(category);
       if (city) searchParts.push(`in ${city}`);
-      searchQuery = encodeURIComponent(searchParts.length > 0 ? searchParts.join(' ') : 'businesses');
-      await page.goto(`https://www.google.com/maps/search/${searchQuery}?hl=en`, { waitUntil: 'domcontentloaded' });
+      searchQuery = encodeURIComponent(searchParts.length > 0 ? searchParts.join(' ') : 'businesses in Kuala Lumpur');
+      await page.goto(`https://www.google.com/maps/search/${searchQuery}?hl=en`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000
+      });
     }
-    
-    // Wait for results
-    await page.waitForSelector('.hfpxzc', { timeout: 15000 });
 
-    // Scroll for more results
-    const scrollContainer = page.locator('[role="feed"]').first();
-    for (let i = 0; i < 5; i++) {
-      try {
-        await scrollContainer.evaluate((el: HTMLElement) => el.scrollBy(0, 1000));
-      } catch {
-        await page.mouse.wheel(0, 3000);
+    // Dismiss any consent modal if it appears
+    try {
+      const consentBtn = await page.$('button[aria-label*="Accept all"], button:has-text("Accept all"), button:has-text("I agree"), form[action*="consent"] button');
+      if (consentBtn) {
+        await consentBtn.click();
+        await page.waitForTimeout(1000);
       }
-      await page.waitForTimeout(800);
+    } catch {}
+    
+    // Wait for results container or cards
+    try {
+      await page.waitForSelector('.Nv2PK, .hfpxzc, [role="feed"]', { timeout: 12000 });
+    } catch {
+      console.log('Timeout waiting for initial feed selector');
     }
 
-    // Get all URLs from the list
-    const placeUrls = await page.evaluate(() => {
-      const places = Array.from(document.querySelectorAll('.Nv2PK'));
-      return places.map(place => {
-        const linkEl = place.querySelector('.hfpxzc') as HTMLAnchorElement;
-        return linkEl?.href || '';
-      }).filter(url => url !== '');
+    // Scroll for more results using mouse wheel over feed
+    const feed = await page.$('[role="feed"]');
+    if (feed) {
+      const box = await feed.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        for (let i = 0; i < 5; i++) {
+          await page.mouse.wheel(0, 1600);
+          await page.waitForTimeout(600);
+        }
+      }
+    }
+
+    // Extract all place cards from the feed
+    const cardData = await page.evaluate(() => {
+      const phoneRegex = /(?:\+?60|0)[1-9]\d{0,2}[-\s]?\d{3,4}[-\s]?\d{3,4}/;
+      const cards = Array.from(document.querySelectorAll('.Nv2PK'));
+      return cards.map(c => {
+        const linkEl = c.querySelector('.hfpxzc') as HTMLAnchorElement | null;
+        const href = linkEl?.href || '';
+        const nameEl = c.querySelector('.qBF1Pd, .fontHeadlineSmall, [role="heading"]');
+        const name = nameEl?.textContent?.trim() || '';
+
+        const ratingEl = c.querySelector('.MW4etd, [aria-label*="stars"], [aria-label*="star"]');
+        const rating = ratingEl?.textContent ? parseFloat(ratingEl.textContent.trim()) : null;
+
+        const reviewEl = c.querySelector('.UY7F9, [aria-label*="reviews"]');
+        const reviewText = reviewEl?.textContent?.replace(/[^\d]/g, '') || null;
+        const reviewCount = reviewText ? parseInt(reviewText, 10) : null;
+
+        const fullText = (c as HTMLElement).innerText || '';
+        const phoneMatch = fullText.match(phoneRegex);
+        const cardPhone = phoneMatch ? phoneMatch[0] : null;
+
+        // Image extraction from card
+        const imgEl = c.querySelector('img[src*="googleusercontent.com"], img[src*="ggpht.com"], img[src*="streetviewpixels"], img') as HTMLImageElement | null;
+        let imageUrl = imgEl?.src || null;
+        if (imageUrl && imageUrl.includes('=w')) {
+          imageUrl = imageUrl.replace(/=w\d+-h\d+[^&]*/, '=w600-h400-k-no');
+        }
+
+        return { href, name, rating, reviewCount, cardPhone, imageUrl };
+      }).filter(c => c.href && c.name && c.name !== 'Results');
     });
 
-    for (let i = 0; i < placeUrls.length; i++) {
+    console.log(`Found ${cardData.length} candidate cards in feed for ${category || 'businesses'} in ${city}`);
+
+    for (let i = 0; i < cardData.length; i++) {
       if (leads.length >= limit) break;
       
-      const url = placeUrls[i];
-      // Force english to make scraping consistent
-      const fullUrl = url.includes('?') ? `${url}&hl=en` : `${url}?hl=en`;
+      const item = cardData[i];
+      const fullUrl = item.href.includes('?') ? `${item.href}&hl=en` : `${item.href}?hl=en`;
       
-      await page.goto(fullUrl, { waitUntil: 'domcontentloaded' });
-      // wait a bit for panel to populate
-      await page.waitForTimeout(2000);
+      try {
+        await page.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 12000 });
+        await page.waitForTimeout(1400);
 
-      const r = await page.evaluate(() => {
-        const name = document.querySelector('h1')?.textContent || '';
-        
-        // Website
-        const websiteBtn = document.querySelector('[data-item-id="authority"]') || document.querySelector('[data-tooltip="Open website"]');
-        let websiteUrl = null;
-        if (websiteBtn) {
+        const r = await page.evaluate(() => {
+          const detailTitle = document.querySelector('.DUwDvf, h1.DUwDvf, [role="main"] h1');
+          const panelName = detailTitle?.textContent?.trim() || '';
+          
+          // Website
+          const websiteBtn = document.querySelector('[data-item-id="authority"], [data-tooltip="Open website"], a[aria-label*="website" i]');
+          let websiteUrl = null;
+          if (websiteBtn) {
             const a = websiteBtn.closest('a') || websiteBtn.querySelector('a') || websiteBtn;
             websiteUrl = (a as any).href || null;
             if (websiteUrl && websiteUrl.includes('google.com/url?q=')) {
-                try {
-                    const urlObj = new URL(websiteUrl);
-                    websiteUrl = urlObj.searchParams.get('q') || websiteUrl;
-                } catch { /* ignore */ }
+              try {
+                const urlObj = new URL(websiteUrl);
+                websiteUrl = urlObj.searchParams.get('q') || websiteUrl;
+              } catch { /* ignore */ }
             }
-        }
+          }
 
-        // Phone
-        const phoneBtn = document.querySelector('[data-item-id^="phone:tel:"]') || document.querySelector('[data-tooltip="Copy phone number"]');
-        let originalPhone = phoneBtn ? (phoneBtn.textContent || '').trim() : null;
-        // Clean phone text if it has extra stuff
-        if (originalPhone && originalPhone.includes('·')) {
+          // Phone button (avoid "Send to phone" button!)
+          const phoneBtn = document.querySelector('[data-item-id^="phone:tel:"], a[href^="tel:"], button[data-tooltip="Copy phone number"]');
+          let originalPhone: string | null = null;
+          if (phoneBtn) {
+            const itemId = phoneBtn.getAttribute('data-item-id');
+            if (itemId && itemId.startsWith('phone:tel:')) {
+              originalPhone = itemId.replace('phone:tel:', '');
+            } else {
+              originalPhone = (phoneBtn.textContent || '').trim();
+            }
+          }
+          if (originalPhone && originalPhone.includes('·')) {
             originalPhone = originalPhone.split('·')[0].trim();
-        }
+          }
 
-        // Address
-        const addressBtn = document.querySelector('[data-item-id="address"]') || document.querySelector('[data-tooltip="Copy address"]');
-        const address = addressBtn ? (addressBtn.textContent || '').trim() : '';
+          // Address
+          const addressBtn = document.querySelector('[data-item-id="address"], [data-tooltip="Copy address"]');
+          let address = addressBtn ? (addressBtn.textContent || '').trim() : '';
+          address = address.replace(/^[\uE000-\uF8FF\s]+/, '').trim();
+          
+          // Rating
+          const ratingEl = document.querySelector('.F7nice span[aria-hidden="true"], .MW4etd');
+          const rating = ratingEl ? parseFloat(ratingEl.textContent || '0') : null;
+          
+          // Review Count
+          const reviewEl = document.querySelector('.F7nice span[aria-label*="reviews"], .UY7F9');
+          const reviewCountStr = reviewEl ? reviewEl.getAttribute('aria-label') || reviewEl.textContent : '';
+          const reviewCountMatch = reviewCountStr ? reviewCountStr.match(/([\d,]+)/) : null;
+          const reviewCount = reviewCountMatch ? parseInt(reviewCountMatch[1].replace(/,/g, ''), 10) : null;
+
+          // Hero photo in panel
+          const heroImg = document.querySelector('button[jsaction*="pane.heroHeaderImage"] img, [data-photo-index] img') as HTMLImageElement | null;
+          let panelImg = heroImg?.src || null;
+          if (panelImg && panelImg.includes('=w')) {
+            panelImg = panelImg.replace(/=w\d+-h\d+[^&]*/, '=w600-h400-k-no');
+          }
+
+          // Extract email from body text
+          const html = document.body.innerHTML;
+          const emailMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i);
+          const extractedEmail = emailMatch ? emailMatch[1] : null;
+
+          return { panelName, websiteUrl, originalPhone, address, rating, reviewCount, panelImg, extractedEmail };
+        });
+
+        const businessName = (r.panelName && r.panelName !== 'Results') ? r.panelName : item.name;
+        if (!businessName) continue;
         
-        // Rating
-        const ratingEl = document.querySelector('.F7nice span[aria-hidden="true"]');
-        const rating = ratingEl ? parseFloat(ratingEl.textContent || '0') : null;
+        const hasWebsite = !!r.websiteUrl;
+        if (mode === 'no_website' && hasWebsite) continue;
+        if (mode === 'outdated_website' && !hasWebsite) continue;
+
+        const effectivePhone = r.originalPhone || item.cardPhone;
+        const cleanPhone = sanitizePhone(effectivePhone);
+        const finalImage = r.panelImg || item.imageUrl || null;
+
+        const placeIdMatch = item.href.match(/!1s([^!]+)!/);
+        const placeId = placeIdMatch ? placeIdMatch[1] : Buffer.from(businessName + item.href).toString('base64').slice(0, 40);
         
-        // Review Count
-        const reviewEl = document.querySelector('.F7nice span[aria-label*="reviews"]');
-        const reviewCountStr = reviewEl ? reviewEl.getAttribute('aria-label') : '';
-        const reviewCountMatch = reviewCountStr ? reviewCountStr.match(/([\d,]+)/) : null;
-        const reviewCount = reviewCountMatch ? parseInt(reviewCountMatch[1].replace(/,/g, ''), 10) : null;
-
-        // Extract email from body text just in case
-        const html = document.body.innerHTML;
-        const emailMatch = html.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i);
-        const extractedEmail = emailMatch ? emailMatch[1] : null;
-
-        return { name, websiteUrl, originalPhone, address, rating, reviewCount, extractedEmail };
-      });
-
-      if (!r.name) continue;
-      
-      const hasWebsite = !!r.websiteUrl;
-      if (mode === 'no_website' && hasWebsite) continue;
-      if (mode === 'outdated_website' && !hasWebsite) continue;
-
-      const placeIdMatch = url.match(/!1s([^!]+)!/);
-      const placeId = placeIdMatch ? placeIdMatch[1] : Buffer.from(r.name + url).toString('base64').slice(0, 40);
-      
-      let isOutdated = false;
-      let finalEmail = r.extractedEmail;
-      
-      if (mode === 'outdated_website' && r.websiteUrl) {
-        const checkResult = await checkIfOutdated(r.websiteUrl, context);
-        isOutdated = checkResult.isOutdated;
-        if (!finalEmail && checkResult.email) {
-          finalEmail = checkResult.email;
+        let isOutdated = false;
+        let finalEmail = r.extractedEmail;
+        
+        if (mode === 'outdated_website' && r.websiteUrl) {
+          const checkResult = await checkIfOutdated(r.websiteUrl, context);
+          isOutdated = checkResult.isOutdated;
+          if (!finalEmail && checkResult.email) {
+            finalEmail = checkResult.email;
+          }
+          if (!isOutdated) continue;
         }
-        if (!isOutdated) continue;
+        
+        leads.push({
+          placeId,
+          name: businessName,
+          phone: cleanPhone,
+          originalPhone: effectivePhone ? effectivePhone.replace(/^[\uE000-\uF8FF\s]+/, '').trim() : null,
+          address: r.address || city || 'Kuala Lumpur',
+          rating: r.rating || item.rating,
+          reviewCount: r.reviewCount || item.reviewCount,
+          mapsUrl: item.href,
+          category: category || 'Business',
+          leadType: mode === 'outdated_website' ? 'OUTDATED_WEBSITE' : 'NO_WEBSITE',
+          websiteUrl: r.websiteUrl,
+          imageUrl: finalImage,
+          email: finalEmail,
+        });
+
+        console.log(`[Scraped ${leads.length}/${limit}] ${businessName} | Phone: ${cleanPhone || 'None'} | Image: ${finalImage ? 'Yes' : 'No'}`);
+      } catch (err: any) {
+        console.log(`Error checking place ${item.name}:`, err.message);
       }
-      
-      leads.push({
-        placeId,
-        name: r.name,
-        phone: sanitizePhone(r.originalPhone),
-        originalPhone: r.originalPhone,
-        address: r.address || city,
-        rating: r.rating,
-        reviewCount: r.reviewCount,
-        mapsUrl: url,
-        category,
-        leadType: mode === 'outdated_website' ? 'OUTDATED_WEBSITE' : 'NO_WEBSITE',
-        websiteUrl: r.websiteUrl,
-        email: finalEmail,
-      });
     }
 
   } catch (error) {

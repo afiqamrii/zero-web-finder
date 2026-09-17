@@ -26,35 +26,49 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen pb-20 sm:pb-8">
-      {/* Header */}
-      <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 h-12 sm:h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Crosshair className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
+    <main className="min-h-screen bg-[#F5F5F7] pb-24 sm:pb-16 text-[#1D1D1F]">
+      {/* Apple-style Translucent Header */}
+      <header className="border-b border-black/[0.06] bg-white/75 backdrop-blur-2xl sticky top-0 z-40 transition-all">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-xl bg-[#1D1D1F] text-white flex items-center justify-center shadow-sm">
+              <Crosshair className="h-4 w-4" />
             </div>
-            <h1 className="text-sm sm:text-base font-bold tracking-tight text-foreground">
-              Zero Web Finder
-            </h1>
+            <div>
+              <h1 className="text-sm sm:text-base font-bold tracking-tight text-[#1D1D1F]">
+                Zero Web Finder
+              </h1>
+            </div>
           </div>
-          <p className="text-[10px] sm:text-xs text-muted-foreground">Lead Gen Tool</p>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-[#EBEBED] text-[#6E6E73]">
+              Freelancer Client Radar
+            </span>
+          </div>
         </div>
       </header>
       
       {/* Content */}
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Find your next client
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
+        <div className="space-y-1">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1D1D1F]">
+            Find your next client.
           </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Discover businesses without websites — or with outdated ones.
+          <p className="text-sm sm:text-base text-[#86868B]">
+            Discover businesses without websites — and pitch them professional web design with one click.
           </p>
         </div>
         
         <SearchForm onSearchComplete={handleSearchComplete} />
-        <LeadsTable refreshTrigger={refreshTrigger} />
+        
+        <div className="pt-2">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-bold tracking-tight text-[#1D1D1F]">
+              Discovered Leads
+            </h3>
+          </div>
+          <LeadsTable refreshTrigger={refreshTrigger} />
+        </div>
       </div>
 
       {/* Results Popup */}
