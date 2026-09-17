@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { MapPin, Star, Phone, MessageCircle, ExternalLink, CheckCircle, AlertTriangle, Globe } from 'lucide-react';
+import { MapPin, Star, Phone, MessageCircle, ExternalLink, CheckCircle, AlertTriangle, Globe, Mail } from 'lucide-react';
 
 interface ResultsPopupProps {
   open: boolean;
