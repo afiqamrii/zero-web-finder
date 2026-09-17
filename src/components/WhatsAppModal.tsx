@@ -24,63 +24,64 @@ interface WhatsAppModalProps {
 
 export function WhatsAppModal({ open, onClose, lead, onStatusUpdate }: WhatsAppModalProps) {
   const { toast } = useToast();
-  const [templateKey, setTemplateKey] = useState<'standard' | 'personalized' | 'outdated'>('standard');
+  const [templateKey, setTemplateKey] = useState<'opener' | 'followup' | 'full' | 'redesign'>('opener');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Generate templates
-  const getStandardTemplate = () => {
+  const getOpenerTemplate = (bizName: string) => {
     return `Hi, I’m Afiq Amri, a freelance web developer.
 
-I came across your business on Google Maps and noticed that you don’t have a website at the moment.
-
-I help local businesses set up professional websites to give customers a better way to learn about their business and services online.
-
-If you’re open to it, I can prepare a quick website concept for your business for you to have a look at. No obligation.`;
+I came across ${bizName} on Google Maps and noticed that you don’t have a website at the moment, is that right? ☺️`;
   };
 
-  const getPersonalizedTemplate = (bizName: string, bizCategory?: string) => {
-    const categoryText = bizCategory && bizCategory !== 'Business' ? ` (${bizCategory.toLowerCase()})` : '';
+  const getFollowUpTemplate = (bizName: string) => {
+    return `Got it. I specialise in helping local businesses set up professional websites.
+
+I had a few ideas for how ${bizName} could present itself online. If you'd like, I can put together a quick concept for you to see.`;
+  };
+
+  const getFullTemplate = (bizName: string) => {
     return `Hi, I’m Afiq Amri, a freelance web developer.
 
-I came across ${bizName} on Google Maps and noticed that you don’t have a website at the moment${categoryText}.
+I came across ${bizName} on Google Maps and noticed that you don’t have a website at the moment.
 
-I help local businesses set up professional websites to give customers a better way to learn about their business and services online.
+I specialise in helping local businesses set up professional websites, and I had a few ideas for how ${bizName} could present itself online.
 
-If you’re open to it, I can prepare a quick website concept for ${bizName} for you to have a look at. No obligation.`;
+If you'd like, I’d be happy to put together a quick concept for you to have a look at.`;
   };
 
-  const getOutdatedTemplate = (bizName: string) => {
+  const getRedesignTemplate = (bizName: string) => {
     return `Hi, I’m Afiq Amri, a freelance web developer.
 
 I came across ${bizName} on Google Maps and took a look at your website.
 
-I help local businesses modernize their websites to give customers a faster loading speed, clean mobile layout, and modern look.
-
-If you’re open to it, I can prepare a quick website refresh concept for ${bizName} for you to have a look at. No obligation.`;
+I specialise in modernising websites to make them fast and look great on mobile. I had a few ideas for a quick refresh — if you'd like, I’d be happy to put together a concept for you to see.`;
   };
 
   useEffect(() => {
     if (!lead) return;
     const isOutdated = lead.leadType === 'OUTDATED_WEBSITE';
     if (isOutdated) {
-      setTemplateKey('outdated');
-      setMessage(getOutdatedTemplate(lead.name));
+      setTemplateKey('redesign');
+      setMessage(getRedesignTemplate(lead.name));
     } else {
-      setTemplateKey('standard');
-      setMessage(getStandardTemplate());
+      setTemplateKey('opener');
+      setMessage(getOpenerTemplate(lead.name));
     }
   }, [lead]);
 
-  const handleSelectTemplate = (key: 'standard' | 'personalized' | 'outdated') => {
+  const handleSelectTemplate = (key: 'opener' | 'followup' | 'full' | 'redesign') => {
     if (!lead) return;
     setTemplateKey(key);
-    if (key === 'standard') {
-      setMessage(getStandardTemplate());
-    } else if (key === 'personalized') {
-      setMessage(getPersonalizedTemplate(lead.name, lead.category));
-    } else if (key === 'outdated') {
-      setMessage(getOutdatedTemplate(lead.name));
+    if (key === 'opener') {
+      setMessage(getOpenerTemplate(lead.name));
+    } else if (key === 'followup') {
+      setMessage(getFollowUpTemplate(lead.name));
+    } else if (key === 'full') {
+      setMessage(getFullTemplate(lead.name));
+    } else if (key === 'redesign') {
+      setMessage(getRedesignTemplate(lead.name));
     }
   };
 
@@ -170,40 +171,79 @@ If you’re open to it, I can prepare a quick website refresh concept for ${bizN
           </div>
 
           <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#F5F5F7] rounded-2xl border border-black/[0.04]">
-            <button
-              type="button"
-              onClick={() => handleSelectTemplate('standard')}
-              className={`text-xs py-2 px-2.5 rounded-xl font-medium transition-all ${
-                templateKey === 'standard'
-                  ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
-                  : 'text-[#86868B] hover:text-[#1D1D1F]'
-              }`}
-            >
-              Standard
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectTemplate('personalized')}
-              className={`text-xs py-2 px-2.5 rounded-xl font-medium transition-all flex items-center justify-center gap-1 ${
-                templateKey === 'personalized'
-                  ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
-                  : 'text-[#86868B] hover:text-[#1D1D1F]'
-              }`}
-            >
-              <Sparkles className="h-3 w-3 text-amber-500" />
-              Tailored
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSelectTemplate('outdated')}
-              className={`text-xs py-2 px-2.5 rounded-xl font-medium transition-all ${
-                templateKey === 'outdated'
-                  ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
-                  : 'text-[#86868B] hover:text-[#1D1D1F]'
-              }`}
-            >
-              Redesign
-            </button>
+            {lead.leadType === 'OUTDATED_WEBSITE' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('redesign')}
+                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                    templateKey === 'redesign'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  Redesign
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('opener')}
+                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                    templateKey === 'opener'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  1. Opener
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('followup')}
+                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                    templateKey === 'followup'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  2. Follow-Up
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('opener')}
+                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                    templateKey === 'opener'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  1. Opener
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('followup')}
+                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                    templateKey === 'followup'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  2. Follow-Up
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSelectTemplate('full')}
+                  className={`text-xs py-2 px-2 rounded-xl font-medium transition-all ${
+                    templateKey === 'full'
+                      ? 'bg-white text-[#1D1D1F] shadow-[0_2px_8px_rgba(0,0,0,0.06)]'
+                      : 'text-[#86868B] hover:text-[#1D1D1F]'
+                  }`}
+                >
+                  Full Pitch
+                </button>
+              </>
+            )}
           </div>
 
           {/* Editable Textarea */}
