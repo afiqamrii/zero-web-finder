@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { MessageCircle, Copy, Check, Sparkles, Building2, Phone } from 'lucide-react';
+import { MessageCircle, Copy, Check, Building2, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export interface WhatsAppLead {
@@ -23,19 +23,20 @@ interface WhatsAppModalProps {
   onStatusUpdate?: (id: string, newStatus: string) => void;
 }
 
-export function WhatsAppModal({ open, onClose, lead, onStatusUpdate }: WhatsAppModalProps) {
+export function WhatsAppModal(props: WhatsAppModalProps) {
+  return <WhatsAppContent key={`${props.lead?.id ?? 'empty'}:${props.open}`} {...props} />;
+}
+function WhatsAppContent({ open, onClose, lead }: WhatsAppModalProps) {
   const { toast } = useToast();
-  const [templateKey, setTemplateKey] = useState<'teaser' | 'send_demo' | 'refine' | 'opener' | 'redesign'>('teaser');
-  const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Generate templates
   const getTeaserTemplate = (bizName: string) => {
     return `Hi, I’m Afiq Amri, a freelance web developer.
 
-I came across ${bizName} on Google Maps and noticed you don't currently have a website. I actually put together a quick website concept based on your business.
+I came across ${bizName} on Google Maps and wanted to introduce my web design services. I can put together a quick website concept based on your business.
 
-Would you like me to share the link for you to have a look? ☺️`;
+Would you be interested in seeing a few ideas? ☺️`;
   };
 
   const getSendDemoTemplate = (bizName: string, demoUrl?: string | null) => {
@@ -65,17 +66,8 @@ I came across ${bizName} on Google Maps and took a look at your website.
 I specialise in modernising websites to make them fast and look great on mobile. I had a few ideas for a quick refresh — if you'd like, I’d be happy to put together a concept for you to see.`;
   };
 
-  useEffect(() => {
-    if (!lead) return;
-    const isOutdated = lead.leadType === 'OUTDATED_WEBSITE';
-    if (isOutdated) {
-      setTemplateKey('redesign');
-      setMessage(getRedesignTemplate(lead.name));
-    } else {
-      setTemplateKey('teaser');
-      setMessage(getTeaserTemplate(lead.name));
-    }
-  }, [lead]);
+  const [templateKey, setTemplateKey] = useState<'teaser' | 'send_demo' | 'refine' | 'opener' | 'redesign'>(lead?.leadType === 'OUTDATED_WEBSITE' ? 'redesign' : 'teaser');
+  const [message, setMessage] = useState(lead ? lead.leadType === 'OUTDATED_WEBSITE' ? getRedesignTemplate(lead.name) : getTeaserTemplate(lead.name) : '');
 
   const handleSelectTemplate = (key: 'teaser' | 'send_demo' | 'refine' | 'opener' | 'redesign') => {
     if (!lead) return;
@@ -121,13 +113,10 @@ I specialise in modernising websites to make them fast and look great on mobile.
 
     window.open(url, '_blank');
 
-    if (onStatusUpdate) {
-      onStatusUpdate(lead.id, 'WHATSAPP_SENT');
-    }
 
     toast({
       title: 'WhatsApp opened',
-      description: `Outreach sent to ${lead.name}. Status marked as WA Sent.`,
+      description: `Message prepared for ${lead.name}. Update the stage after you send it in WhatsApp.`,
     });
     onClose();
   };

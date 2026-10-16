@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
-  title: "Zero Web Finder — Lead Generation",
-  description: "Find local businesses without websites from Google Maps and pitch web design services.",
+  title: "Zero Web Finder — Your growth workspace",
+  description: "Discover leads, automate approved outreach, and track projects in one private workspace.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable}`} suppressHydrationWarning>
-      <body className="min-h-screen bg-background text-foreground font-sans antialiased" suppressHydrationWarning>
+    <html lang="en">
+      <body className="min-h-screen bg-background text-foreground font-sans antialiased">
         {children}
       </body>
     </html>

@@ -7,3 +7,7 @@ README.md
 .git
 dev.db
 dev.db-journal
+.env*
+zero-web-finder
+.local
+test-results

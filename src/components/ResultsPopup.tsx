@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import type { Lead } from './LeadsTable';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { MapPin, Star, Phone, MessageCircle, ExternalLink, CheckCircle2, AlertCircle } from 'lucide-react';
 
@@ -9,7 +10,7 @@ interface ResultsPopupProps {
   onClose: () => void;
   result: {
     count: number;
-    leads: any[];
+    leads: Lead[];
     city: string;
     category: string;
     mode: string;
@@ -65,7 +66,7 @@ If you’re open to it, I can prepare a quick website concept for your business 
 
         {result.count > 0 && (
           <div className="flex-1 overflow-y-auto -mx-2 px-2 space-y-2.5 min-h-0 py-2">
-            {result.leads.slice(0, 6).map((lead: any, i: number) => (
+            {result.leads.slice(0, 6).map((lead, i) => (
               <div key={i} className="bg-[#F5F5F7]/80 rounded-2xl p-3.5 space-y-2 border border-black/[0.03]">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">

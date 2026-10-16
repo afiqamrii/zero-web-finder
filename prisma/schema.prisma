@@ -35,4 +35,137 @@ model Lead {
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  emailVerified Boolean @default(false)
+  emailSource   String?
+  score         Int @default(0)
+  dealValueCents Int @default(0)
+  revenueCents  Int @default(0)
+  lastContactedAt DateTime?
+  optedOutAt    DateTime?
+  enrollment    Enrollment?
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@index([score, createdAt])
+}
+
+model Campaign {
+  id String @id @default(uuid())
+  name String
+  status String @default("DRAFT")
+  city String @default("")
+  category String @default("")
+  leadType String @default("ALL")
+  minScore Int @default(30)
+  subject String
+  body String
+  followUpBody String @default("")
+  followUpDays Int @default(4)
+  autoEnroll Boolean @default(false)
+  approvedAt DateTime?
+  approvedSettings String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  enrollments Enrollment[]
+}
+
+model Enrollment {
+  id String @id @default(uuid())
+  campaignId String
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  leadId String @unique
+  lead Lead @relation(fields: [leadId], references: [id])
+  email String @unique
+  status String @default("ACTIVE")
+  token String @unique @default(uuid())
+  lastReplyCheckAt DateTime?
+  createdAt DateTime @default(now())
+  messages EmailMessage[]
+  @@index([campaignId, status])
+}
+
+model EmailMessage {
+  id String @id @default(uuid())
+  enrollmentId String
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
+  step Int @default(0)
+  recipient String
+  sender String
+  replyTo String
+  subject String
+  body String
+  unsubscribeUrl String
+  status String @default("QUEUED")
+  providerId String? @unique
+  provider String @default("gmail")
+  threadId String?
+  attempts Int @default(0)
+  firstAttemptAt DateTime?
+  lastAttemptAt DateTime?
+  sentAt DateTime?
+  deliveredAt DateTime?
+  error String?
+  scheduledAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([enrollmentId, step])
+  @@index([status, scheduledAt])
+  @@index([sentAt])
+}
+
+model Suppression {
+  email String @id
+  reason String
+  createdAt DateTime @default(now())
+}
+
+model DiscoveryJob {
+  id String @id @default(uuid())
+  city String
+  category String
+  mode String @default("no_website")
+  limit Int @default(10)
+  intervalHours Int @default(0)
+  enabled Boolean @default(true)
+  status String @default("QUEUED")
+  nextRunAt DateTime @default(now())
+  lastRunAt DateTime?
+  resultCount Int @default(0)
+  error String?
+  createdAt DateTime @default(now())
+  @@index([enabled, nextRunAt])
+}
+
+model Activity {
+  id String @id @default(uuid())
+  kind String
+  message String
+  entityId String?
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id String @id
+  createdAt DateTime @default(now())
+}
+
+model Workspace {
+  id String @id @default("owner")
+  senderName String @default("Afiq Amri")
+  senderEmail String @default("")
+  replyTo String @default("")
+  businessAddress String @default("")
+  offer String @default("Business websites from RM1,499")
+  dailyLimit Int @default(20)
+  sendStartHour Int @default(9)
+  sendEndHour Int @default(17)
+  weekdaysOnly Boolean @default(true)
+  sendingEnabled Boolean @default(false)
+  followUpsEnabled Boolean @default(false)
+  leaseToken String?
+  leaseUntil DateTime?
+  lastWorkerAt DateTime?
+  lastWorkerError String?
+  updatedAt DateTime @updatedAt
 }

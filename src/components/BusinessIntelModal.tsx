@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -58,7 +58,10 @@ interface BusinessIntelModalProps {
   onOpenWhatsApp?: (lead: BusinessIntelLead) => void;
 }
 
-export function BusinessIntelModal({
+export function BusinessIntelModal(props: BusinessIntelModalProps) {
+  return <BusinessIntelContent key={props.lead?.id ?? 'empty'} {...props} />;
+}
+function BusinessIntelContent({
   open,
   onClose,
   lead,
@@ -68,16 +71,10 @@ export function BusinessIntelModal({
   const { toast } = useToast();
   const [copiedPrompt, setCopiedPrompt] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
-  const [demoInput, setDemoInput] = useState('');
+  const [demoInput, setDemoInput] = useState(lead?.demoUrl ?? '');
   const [isSavingDemo, setIsSavingDemo] = useState(false);
   const [showPromptPreview, setShowPromptPreview] = useState(false);
 
-  // Sync demoInput when lead changes
-  useEffect(() => {
-    if (lead) {
-      setDemoInput(lead.demoUrl || '');
-    }
-  }, [lead]);
 
   if (!lead) return null;
 
@@ -643,7 +640,7 @@ Remember: this is a sales DEMO. It should demonstrate the value of having a prof
                       </div>
                     </div>
                     <p className="text-xs text-[#48484A] leading-relaxed italic">
-                      "{rev.text}"
+                      &ldquo;{rev.text}&rdquo;
                     </p>
                   </div>
                 ))}

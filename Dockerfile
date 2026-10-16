@@ -10,7 +10,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl
 
 COPY package.json package-lock.json* ./
-RUN npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 # 2. Build the application
 FROM base AS builder
@@ -45,17 +45,17 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Copy all required files
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 
-# Note: Playwright requires root for some dependencies when running chromium, but mcr.microsoft.com/playwright handles it.
-# We will run as nextjs user for safety, but if scraping fails on Render, switch to root.
+# Keep both the app and Chromium under the dedicated unprivileged user.
 USER nextjs
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["npm", "run", "start"]
+CMD ["node", "scripts/start.mjs"]

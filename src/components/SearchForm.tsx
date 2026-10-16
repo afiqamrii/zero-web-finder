@@ -29,7 +29,7 @@ type SearchMode = 'no_website' | 'outdated_website';
 
 interface SearchResult {
   count: number;
-  leads: any[];
+  leads: import('./LeadsTable').Lead[];
   city: string;
   category: string;
   mode: string;
@@ -80,8 +80,8 @@ export function SearchForm({ onSearchComplete }: { onSearchComplete: (result: Se
         category: finalCategory || 'businesses',
         mode,
       });
-    } catch (error: any) {
-      toast({ title: 'Search failed', description: error.message || 'Something went wrong.' });
+    } catch (error: unknown) {
+      toast({ title: 'Search failed', description: error instanceof Error ? error.message : 'Something went wrong.' });
     } finally {
       setIsLoading(false);
     }

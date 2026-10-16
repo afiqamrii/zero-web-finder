@@ -1,0 +1,35 @@
+# Reviewable production plan; creating this service incurs hosting charges.
+# Deploy only after a verified database backup, staging upgrade, and account setup.
+services:
+  - type: web
+    name: zero-web-finder-live
+    runtime: docker
+    repo: https://github.com/afiqamrii/zero-web-finder
+    branch: codex/growth-launch
+    region: singapore
+    plan: 1c-2g
+    numInstances: 1
+    autoDeployTrigger: off
+    healthCheckPath: /api/health
+    maxShutdownDelaySeconds: 300
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: OWNER_PASSWORD
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: CRON_SECRET
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: gmail
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false

@@ -1,4 +1,6 @@
-import { chromium } from 'playwright';
+import { chromium, type BrowserContext } from 'playwright';
+import { createHash } from 'node:crypto';
+import { isPublicUrl } from './public-url';
 import { sanitizePhone } from './phone';
 
 export interface ScrapedLead {
@@ -32,7 +34,8 @@ interface ScrapeOptions {
   lng?: number;
 }
 
-async function checkIfOutdated(url: string, browser: any): Promise<{ isOutdated: boolean; email: string | null }> {
+async function checkIfOutdated(url: string, browser: BrowserContext): Promise<{ isOutdated: boolean; email: string | null }> {
+  if (!await isPublicUrl(url)) return { isOutdated: false, email: null };
   const page = await browser.newPage();
   try {
     // Check for HTTP (no HTTPS)
@@ -86,8 +89,8 @@ async function checkIfOutdated(url: string, browser: any): Promise<{ isOutdated:
     
     return { isOutdated: checks.outdatedScore >= 3, email: checks.extractedEmail };
   } catch {
-    // If site doesn't even load, it's definitely outdated
-    return { isOutdated: true, email: null };
+    // A failed request is not evidence that a website is outdated.
+    return { isOutdated: false, email: null };
   } finally {
     await page.close();
   }
@@ -101,10 +104,7 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-web-security',
-      '--disable-features=IsolateOrigins,site-per-process'
+      '--disable-dev-shm-usage'
     ]
   });
 
@@ -120,8 +120,20 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
       permissions: ['geolocation'],
     } : {}),
   });
+  context.setDefaultTimeout(5000);
 
-  // Pre-set consent cookies so Google consent dialog never interrupts
+  const networkChecks = new Map<string, Promise<boolean>>();
+  await context.route('**/*', async route => {
+    const request = route.request();
+    if (['image', 'media', 'font'].includes(request.resourceType())) return route.abort();
+    let key: string;
+    try { key = new URL(request.url()).origin; } catch { return route.abort(); }
+    if (!networkChecks.has(key)) networkChecks.set(key, isPublicUrl(request.url()));
+    return await networkChecks.get(key) ? route.continue() : route.abort();
+  });
+  let timedOut = false;
+  const deadline = setTimeout(() => { timedOut = true; void browser.close(); }, 150000);
+  // Keep a bounded browser lifetime even when Google or a business site stalls.
   await context.addCookies([
     { name: 'CONSENT', value: 'PENDING+999', domain: '.google.com', path: '/' },
     { name: 'SOCS', value: 'CAESEwgDEgk2ODEwNjM5ODQaAmVuIAEaBgiA_L20Bg', domain: '.google.com', path: '/' }
@@ -129,11 +141,6 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
 
   const page = await context.newPage();
 
-  // Stealth: hide webdriver flag
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    (window as any).chrome = { runtime: {} };
-  });
   
   const leads: ScrapedLead[] = [];
   
@@ -168,9 +175,7 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
     // Wait for results container or cards
     try {
       await page.waitForSelector('.Nv2PK, .hfpxzc, [role="feed"]', { timeout: 12000 });
-    } catch {
-      console.log('Timeout waiting for initial feed selector');
-    }
+    } catch { throw new Error('Google Maps results were unavailable.'); }
 
     // Scroll for more results using mouse wheel over feed
     const feed = await page.$('[role="feed"]');
@@ -178,7 +183,7 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
       const box = await feed.boundingBox();
       if (box) {
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < Math.min(5, Math.ceil(limit / 5)); i++) {
           await page.mouse.wheel(0, 1600);
           await page.waitForTimeout(600);
         }
@@ -213,7 +218,8 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
           imageUrl = imageUrl.replace(/=w\d+-h\d+[^&]*/, '=w600-h400-k-no');
         }
 
-        return { href, name, rating, reviewCount, cardPhone, imageUrl };
+        const listedWebsite = c.querySelector('a[data-value="Website"], a[aria-label*="website" i]');
+        return { href, name, rating, reviewCount, cardPhone, imageUrl, hasListedWebsite: !!listedWebsite };
       }).filter(c => c.href && c.name && c.name !== 'Results');
     });
 
@@ -223,18 +229,20 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
       if (leads.length >= limit) break;
       
       const item = cardData[i];
+      if (mode === 'no_website' && item.hasListedWebsite) continue;
       const fullUrl = item.href.includes('?') ? `${item.href}&hl=en` : `${item.href}?hl=en`;
       
       try {
         await page.goto(fullUrl, { waitUntil: 'domcontentloaded', timeout: 12000 });
-        await page.waitForTimeout(1400);
+        await page.waitForSelector('.DUwDvf, [role="main"] h1', { timeout: 7000 });
 
         // Try clicking hours button to expand full week schedule
         try {
-          const hoursBtn = await page.$('[data-item-id*="oh"], button[aria-label*="hours" i], button[aria-label*="open" i], button[aria-label*="closed" i]');
-          if (hoursBtn) {
-            await hoursBtn.click();
-            await page.waitForTimeout(500);
+          // Maps includes hidden copy/edit-hours buttons. Clicking the first
+          // broad match used to wait 30 seconds per business until timeout.
+          const hoursBtn = page.locator('[data-item-id*="oh"]').first();
+          if (await hoursBtn.isVisible()) {
+            await hoursBtn.click({ timeout: 1500 });
           }
         } catch {}
 
@@ -247,7 +255,7 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
           let websiteUrl = null;
           if (websiteBtn) {
             const a = websiteBtn.closest('a') || websiteBtn.querySelector('a') || websiteBtn;
-            websiteUrl = (a as any).href || null;
+            websiteUrl = (a as HTMLAnchorElement).href || null;
             if (websiteUrl && websiteUrl.includes('google.com/url?q=')) {
               try {
                 const urlObj = new URL(websiteUrl);
@@ -398,7 +406,7 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
         const finalImage = r.panelImg || item.imageUrl || (r.photos && r.photos[0]) || null;
 
         const placeIdMatch = item.href.match(/!1s([^!]+)!/);
-        const placeId = placeIdMatch ? placeIdMatch[1] : Buffer.from(businessName + item.href).toString('base64').slice(0, 40);
+        const placeId = placeIdMatch ? placeIdMatch[1] : createHash('sha256').update(item.href).digest('hex');
         
         let isOutdated = false;
         let finalEmail = r.extractedEmail;
@@ -434,15 +442,15 @@ export async function scrapeGoogleMaps(options: ScrapeOptions): Promise<ScrapedL
           email: finalEmail,
         });
 
-        console.log(`[Scraped ${leads.length}/${limit}] ${businessName} | Phone: ${cleanPhone || 'None'} | Photos: ${r.photos?.length || 0} | Hours: ${r.openingHours ? 'Yes' : 'No'}`);
-      } catch (err: any) {
-        console.log(`Error checking place ${item.name}:`, err.message);
+      } catch {
+        if (timedOut) throw new Error('Search exceeded its time limit.');
       }
     }
 
   } catch (error) {
-    console.error('Error scraping Google Maps:', error);
+    throw error;
   } finally {
+    clearTimeout(deadline);
     await browser.close();
   }
 

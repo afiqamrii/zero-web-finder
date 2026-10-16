@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import {
   MapPin,
   MessageCircle,
@@ -11,15 +11,12 @@ import {
   Trash2,
   Download,
   Star,
-  Phone,
   Search,
   Globe,
   AlertTriangle,
-  Mail,
   LayoutGrid,
   List,
   Sparkles,
-  Send,
   StickyNote,
   Copy,
   Check
@@ -79,21 +76,13 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
   const [copiedPhoneId, setCopiedPhoneId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const fetchLeads = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/leads');
-      const data = await res.json();
-      if (res.ok) setLeads(data.leads || []);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchLeads();
+    const controller = new AbortController();
+    fetch('/api/leads', { signal: controller.signal })
+      .then(async res => { const data = await res.json(); if (res.ok && !controller.signal.aborted) setLeads(data.leads || []); })
+      .catch(error => { if (!controller.signal.aborted) console.error(error); })
+      .finally(() => { if (!controller.signal.aborted) setIsLoading(false); });
+    return () => controller.abort();
   }, [refreshTrigger]);
 
   const filteredLeads = useMemo(() => {
@@ -226,24 +215,6 @@ export function LeadsTable({ refreshTrigger }: { refreshTrigger: number }) {
     setCopiedPhoneId(id);
     setTimeout(() => setCopiedPhoneId(null), 2000);
     toast({ title: 'Phone copied', description: phone });
-  };
-
-  const quickSendWhatsApp = (lead: Lead) => {
-    if (!lead.phone) return;
-    let cleanPhone = lead.phone.replace(/\D/g, '');
-    if (cleanPhone.startsWith('0')) cleanPhone = '6' + cleanPhone;
-
-    const defaultMsg = `Hi, I’m Afiq Amri, a freelance web developer.
-
-I came across your business on Google Maps and noticed that you don’t have a website at the moment.
-
-I help local businesses set up professional websites to give customers a better way to learn about their business and services online.
-
-If you’re open to it, I can prepare a quick website concept for your business for you to have a look at. No obligation.`;
-
-    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(defaultMsg)}`, '_blank');
-    updateStatus(lead.id, 'WHATSAPP_SENT');
-    toast({ title: 'WhatsApp opened', description: `Opening chat for ${lead.name}` });
   };
 
   const counts = useMemo(() => {
