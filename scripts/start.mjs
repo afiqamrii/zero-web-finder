@@ -1,4 +1,9 @@
 import { spawn } from 'node:child_process';
+import nextEnv from '@next/env';
+import { workerConfiguration } from './worker-runtime.mjs';
+nextEnv.loadEnvConfig(process.cwd());
+// Do not expose a healthy web process while its worker loops on invalid config.
+try { workerConfiguration(process.env); } catch (error) { console.error(error.message); process.exit(1); }
 const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start'], { stdio: 'inherit', env: process.env });
 let stopping = false;
 let worker, restartTimer, shutdownTimer;

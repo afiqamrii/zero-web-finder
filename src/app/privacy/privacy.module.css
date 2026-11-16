@@ -1,0 +1,21 @@
+.page { min-height: 100vh; padding: 32px 20px; background: #f5f8f2; color: #233b30; }
+.document { max-width: 800px; margin: 0 auto; padding: 36px 48px; border: 1px solid #dce5d7; border-radius: 20px; background: #fff; }
+.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-bottom: 28px; margin-bottom: 36px; border-bottom: 1px solid #e2e8de; }
+.brand { font-size: 19px; font-weight: 650; letter-spacing: -.6px; }
+.header span, .footer span { color: #5e7064; font-size: 12px; }
+.eyebrow { color: #537345; font-size: 11px; font-weight: 650; letter-spacing: 1px; }
+.document h1 { margin: 16px 0 20px; max-width: 600px; font-size: clamp(30px, 5vw, 42px); font-weight: 550; line-height: 1.15; letter-spacing: -1.5px; }
+.intro { font-size: 17px; }
+.document p, .document li { line-height: 1.8; }
+.document section { margin-top: 30px; }
+.document h2 { margin-bottom: 10px; font-size: 20px; font-weight: 600; letter-spacing: -.4px; }
+.document section p, .document li { color: #455b4d; font-size: 14px; }
+.document p + p { margin-top: 12px; }
+.document ul { margin: 12px 0; padding-left: 22px; list-style: disc; }
+.document li + li { margin-top: 8px; }
+.document code { font-size: 12px; }
+.document a { color: #245e3c; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.document a:focus-visible { outline: 2px solid #245e3c; outline-offset: 4px; border-radius: 2px; }
+.header .brand { text-decoration: none; }
+.footer { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; border-top: 1px solid #e2e8de; margin-top: 34px; padding-top: 22px; font-size: 13px; }
+@media (max-width: 600px) { .page { padding: 14px; }.document { padding: 24px 20px; border-radius: 14px; }.header { margin-bottom: 28px; }.header span { width: 100%; }.document h1 { letter-spacing: -1px; }.intro { font-size: 15px; } }

@@ -1,11 +1,17 @@
+# Free online workspace. Automation runs only while this instance is awake.
+# Pause discovery jobs before launch: Chromium capacity is unverified at 512 MB.
 services:
   - type: web
     name: zero-web-finder
     runtime: docker
+    repo: https://github.com/afiqamrii/zero-web-finder
+    branch: codex/growth-launch
     autoDeployTrigger: off
     healthCheckPath: /api/health
-    region: singapore # Change to your preferred region (e.g. frankfurt, ohio, oregon, singapore)
-    plan: free # For review only. Continuous automation needs an always-on instance.
+    maxShutdownDelaySeconds: 300
+    region: singapore
+    plan: free
+    numInstances: 1
     envVars:
       - key: DATABASE_URL
         sync: false

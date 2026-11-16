@@ -3,7 +3,8 @@ import { COOKIE, sameOrigin, validSession } from '@/lib/auth';
 
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  const publicRoute = path === '/login' || path === '/api/session' || path === '/api/health' || path === '/api/worker' || path === '/api/webhooks/resend' || path === '/unsubscribe';
+  const publicPrivacy = path === '/privacy' && ['GET', 'HEAD'].includes(request.method);
+  const publicRoute = publicPrivacy || path === '/login' || path === '/api/session' || path === '/api/health' || path === '/api/worker' || path === '/api/webhooks/resend' || path === '/unsubscribe';
   if (!publicRoute && !validSession(request.cookies.get(COOKIE)?.value)) {
     return path.startsWith('/api/') ? NextResponse.json({ error: 'Sign in to continue.' }, { status: 401 }) : NextResponse.redirect(new URL('/login', request.url));
   }

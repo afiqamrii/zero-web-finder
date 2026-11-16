@@ -1,5 +1,17 @@
 # Verification record
 
+## Gmail and database recovery — 16 November 2026
+
+The original paused ZeroFinder database was resumed through its existing Vercel Marketplace integration. Its 22 leads were backed up with `pg_dump`, restored into isolated in-memory PostgreSQL, and compared against the original baseline schema and complete original-field, ID, and note fingerprints. The baseline and additive migrations were then applied to the original database. All 22 original records and fingerprints remain unchanged. All 10 app tables and Prisma migration history have RLS enabled with no PUBLIC/anon/authenticated table grants; Prisma migration status still succeeds. Backups and reports stay in ignored `.local/backups/`.
+
+The app's own Google OAuth client now has verified Gmail sending and read-only access for `afiqamri03@gmail.com`. Google publishing status is In production, and consent was renewed after that change. Google verification is a separate process and has not been claimed. Runtime credentials remain in private environment configuration and are excluded from Git and the container build context. No real email was sent. The owner chose to enter their real postal address privately in Settings; sending stays paused.
+
+The Gmail callback now validates PKCE, state, expiry, one-use exchange, exact callback details, both scopes, and the owner identity before atomically saving credentials. Worker shutdown lets active requests drain, validates startup configuration, and uses `tini` for container child cleanup. A public `/privacy` page is linked from login; only its exact GET/HEAD path bypasses owner authentication.
+
+Validation before hosted deployment: **158 tests in 18 files passed**, production Webpack build and TypeScript passed, worker checks passed, and full lint passed with the three existing legacy image warnings. The final suite includes migration-history access checks; a queue-ordering test now sets an explicit due time instead of relying on database/JavaScript clock equality. The recovery scripts were also independently reviewed. The existing free Render service is selected; no paid hosting was purchased. Its old unprotected deployment was suspended while the protected upgrade was prepared. Hosted runtime verification is recorded separately once complete.
+
+Earlier sections below are historical phase records and their connection/deployment statements describe those phases only.
+
 ## Growth tools and local analysis — 16 November 2026
 
 This follow-up adds usable workflows to the existing application. The interactive preview is a temporary, loopback-only workspace with disconnected sending accounts. A separate temporary instance is used for browser QA. No hosted database was migrated, no hosting was purchased, and no real email was sent.

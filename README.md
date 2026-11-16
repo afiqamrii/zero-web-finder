@@ -50,7 +50,7 @@ The supported Webpack option is used for development and production builds becau
 
 ## Database upgrade — preserve existing leads
 
-This repository previously had a Prisma schema but no migration history. Five migrations now provide the original baseline, an additive workspace upgrade, private-data access controls, sales tasks, and lookup indexes. The latest migrations add a table and indexes without rewriting existing leads or outreach history.
+This repository previously had a Prisma schema but no migration history. Six migrations now provide the original baseline, an additive workspace upgrade, private-data access controls, sales tasks, lookup indexes, and private migration history. The latest migrations add a table and indexes without rewriting existing leads or outreach history.
 
 **Use a separate staging database or a restorable backup first. Do not reset or force-push a schema over an existing database.**
 
@@ -73,7 +73,9 @@ The private-data migration enables RLS and revokes public, `anon`, and `authenti
 
 Existing stages and notes are preserved. `CLOSED` remains a legacy stage; it does not automatically become a win or revenue. Existing emails remain unverified until you check them. The migration adds ranking indexes and backfills fit scores.
 
-The existing Supabase database was **not migrated or modified during this implementation**.
+On 16 November 2026, the original ZeroFinder Supabase project was resumed and upgraded after a private backup and an isolated restore rehearsal. All 22 original leads retained every baseline field, including IDs and notes. All application tables and Prisma migration history now have RLS and no public API-role grants. Sending remains disabled; the owner will enter the real business postal address privately in Settings.
+
+The Windows recovery utilities use PostgreSQL client tools under `.local/tools/postgresql-18.7/bin` (or `PG_BIN`). `database-backup.mjs` requires the expected Supabase project reference and makes a private public-schema archive. `rehearse-database.mjs` restores it only into in-memory PGlite and compares the original schema and record fingerprints. `upgrade-database.mjs` is guarded by the inspected backup, successful rehearsal, project identity, and matching live fingerprints. These are public-schema recovery tools, not full Supabase Auth/Storage backups. Keep all backup artifacts private under ignored `.local/backups/`.
 
 ## Connect afiqamri03@gmail.com privately
 
@@ -116,22 +118,36 @@ Pausing prevents the next worker action. A provider request already in progress 
 
 ## Production and automation
 
-This app needs an always-on Node process with Playwright/Chromium and PostgreSQL. A static host is insufficient. Free hosting that sleeps cannot guarantee unattended schedules.
+The dashboard needs a Node server and PostgreSQL; discovery also needs Playwright/Chromium. A static host is insufficient. Reliable unattended schedules require an always-on process. A sleeping free service can provide an online dashboard with automation only while awake.
 
 ```powershell
 npm run build
 npm run start:all
 ```
 
-`start:all` runs the web app and the independent worker. The supervisor restarts a stopped worker after five seconds and forwards shutdown signals to both processes. The Docker image starts the supervisor directly. Apply migrations before starting the upgraded app. Chromium needs enough memory for search runs.
+`start:all` runs the web app and the independent worker. It validates the worker secret and URL before opening the web server, then restarts a stopped worker after five seconds. On shutdown, the worker stops scheduling new runs and keeps its active request open so Next can finish it. The supervisor allows up to 290 seconds before forced termination, within Render's configured 300-second window. The Docker image uses `tini` to forward signals and reap orphaned Chromium processes. Apply migrations before starting the upgraded app.
 
-`render.yaml` is a sleeping free review configuration. `render.production.yaml` prepares one always-on Singapore web service with 1 CPU and 2 GB RAM, running both the dashboard and worker. The [listed web-service compute cost](https://render.com/pricing) is US$25/month before tax and additional usage. This is a proposed plan, not a purchased service. It uses the `codex/growth-launch` branch, keeps automatic deployments off, allows a 300-second shutdown window, and requires secrets through Render's private environment settings. Confirm the account's actual checkout price before provisioning.
+### Free online mode
+
+`render.yaml` is the selected no-subscription hosting configuration: one Free Docker web service in Singapore, using `codex/growth-launch`. It runs the dashboard and worker in the same service, keeps automatic deployments off, and allows a 300-second shutdown window. Use the existing PostgreSQL connection; this Blueprint does not create a database or a paid background-worker service.
+
+Render Free [sleeps after 15 minutes without inbound traffic](https://render.com/docs/free#spinning-down-on-idle), then takes about a minute to wake on the next real request. The internal worker cannot wake a stopped instance. Approved campaigns can process while the app is awake and their sending window, daily limit, verified-contact rules, and master sending switch allow it. During sleep, schedules, follow-ups, and reply checks wait. Saved tasks and campaign state remain in PostgreSQL. This mode does not provide continuous automation or production availability guarantees.
+
+Before launching on the 512 MB free instance, pause every enabled discovery search in **Automations** and wait for any running search to finish. Turning off email sending does not pause discovery. Leave discovery paused and use imported or manually added leads for the initial free launch; Chromium capacity has not been verified at this memory limit. Review Gmail connection, owner login, database reads, worker heartbeat, opt-out links, and a controlled message to your own address before enabling an approved client campaign. Gmail uses the HTTPS API, so Render's SMTP-port restrictions do not require a different email provider.
+
+Keep usage within the [Free plan limits](https://render.com/docs/free#monthly-usage-limits): instance hours are shared across the workspace, and bandwidth/build usage can incur charges if billing is enabled. Without a payment method, excess usage suspends services or builds instead. Check the workspace billing settings before creating the service. Do not add a temporary Free Render Postgres database for permanent records; it expires after 30 days. Existing database-provider limits still apply.
+
+For automation while your own computer is on, run the local app and worker against the same database using `npm run start:all`. Keep `WORKER_APP_URL` on its default loopback address, and keep `PUBLIC_APP_URL` set to the hosted HTTPS address for recipient opt-outs. Automation stops when the computer sleeps, disconnects, or the processes close. Do not point a recurring local worker or uptime monitor at the free public URL to prevent sleep. The shared database lease serializes a local worker with a hosted worker when both are awake.
+
+### Optional always-on hosting
+
+`render.production.yaml` is retained as an unselected paid alternative. It prepares one Singapore web service with 1 CPU and 2 GB RAM, running both the dashboard and worker. The [listed web-service compute cost](https://render.com/pricing), checked 16 November 2026, is US$25/month before tax and additional usage. The Hobby workspace adds no subscription charge; database charges are separate. Render's cheapest always-on compute is US$7/month with 512 MB RAM. The 2 GB plan is a recommended starting capacity for Chromium discovery, not a measured minimum or throughput guarantee. No paid service has been purchased by this implementation.
 
 The production Blueprint intentionally has no automatic migration command. First back up the existing database, restore it into an isolated staging database, inspect baseline compatibility, apply migrations there, and verify preserved records. Then take a fresh production backup and apply the same inspected migration sequence to production. Never mark the baseline applied merely because a `Lead` table exists. If the schema differs, resolve that difference first without resetting data.
 
-After connecting Render, create a Blueprint using `render.production.yaml`, enter the private database/login/Gmail settings, and set `PUBLIC_APP_URL` to the service's assigned HTTPS URL. Keep the sending switch off during launch verification. Check owner login, protected routes, database reads, worker heartbeat, a small discovery job, opt-out links, and a controlled email to an address you own before enabling an approved client campaign.
+After connecting Render, create a Blueprint using `render.yaml` for the selected free mode, enter the private database/login/Gmail settings, and set `PUBLIC_APP_URL` to the service's assigned HTTPS URL. Use `render.production.yaml` only for a separately selected paid service. Keep the sending switch off during launch verification. On an adequately sized always-on host, also verify a small discovery job before resuming scheduled discovery.
 
-Alternatively, run `npm run start` and `npm run worker` as separately supervised processes. `WORKER_APP_URL` selects the web app address; the default is `http://127.0.0.1:3000`. An external scheduler can POST to `/api/worker` with `Authorization: Bearer <CRON_SECRET>` every minute. That route is not public without the secret. The database lease serializes overlapping runs and survives process restarts. **Run queue now** is available only inside the authenticated dashboard.
+Alternatively, run `npm run start` and `npm run worker` as separately supervised processes. `WORKER_APP_URL` selects the web app address; the default is `http://127.0.0.1:3000`. For an always-on host, an external scheduler can POST to `/api/worker` with `Authorization: Bearer <CRON_SECRET>` every minute. That route is not public without the secret. The database lease serializes overlapping runs and survives process restarts. **Run queue now** is available only inside the authenticated dashboard and still processes only eligible, approved campaigns.
 
 `/api/health` reports web-process health. The dashboard worker heartbeat reports automation activity separately. Keep the database and app in nearby regions, use the appropriate Supabase connection pooler, and use a session/direct connection for migrations. No deployment has been performed by this implementation.
 
@@ -182,10 +198,12 @@ The optional `node scripts/discovery-check.mjs` performs two small public Google
 
 See `VERIFICATION.md` for the actual results and remaining live-service checks.
 
-### Current launch handoff — 16 October 2026
+### Earlier launch attempt — 16 October 2026
+
+This is a historical setup snapshot. The selected hosting configuration is now the Free mode described above.
 
 - The saved Supabase application and session-pooler connections both return `tenant/user not found`. No production backup or schema change has been possible. Open the project's Connect panel and copy the current Session pooler details into the private environment; do not guess the pooler cluster suffix or reset the password on this error alone. See [Supabase's diagnosis](https://supabase.com/docs/guides/troubleshooting/tenant-or-user-not-found).
 - Owner and worker secrets were generated in ignored `.env.local`. They still need to be entered into the selected hosting account.
 - The Codex Gmail connection was confirmed as `afiqamri03@gmail.com`. The hosted application still needs its own OAuth client and refresh token, using the steps above. A Codex connector does not supply runtime credentials to this app.
-- Render account connection and paid-plan approval are pending. The production Blueprint is prepared; no service was created or paid for.
+- That attempt did not create or purchase a Render service. The current selected launch file is `render.yaml` (Free); the optional paid Blueprint is not selected.
 - The business name/postal address and the first campaign still need completion/review in Settings and Email campaigns. Approval remains a per-campaign action; deployment does not approve campaign copy or switch on sending.

@@ -1,4 +1,5 @@
-# Reviewable production plan; creating this service incurs hosting charges.
+# Optional paid alternative, not the selected free launch configuration.
+# Creating this service incurs hosting charges; use render.yaml for free hosting.
 # Deploy only after a verified database backup, staging upgrade, and account setup.
 services:
   - type: web

@@ -1,8 +1,5 @@
 FROM mcr.microsoft.com/playwright:v1.63.0-jammy AS base
 
-# Install Node.js on top of the Playwright image (it comes with Node, but we ensure the right version/env)
-
-
 # 1. Install dependencies
 FROM base AS deps
 WORKDIR /app
@@ -32,8 +29,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install OpenSSL for Prisma in runner
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# OpenSSL supports Prisma; tini reaps orphaned Chromium children and forwards
+# container shutdown signals to our supervisor instead of using Node as PID 1.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl tini && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
@@ -58,4 +56,5 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "scripts/start.mjs"]

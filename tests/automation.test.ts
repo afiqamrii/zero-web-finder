@@ -131,6 +131,11 @@ describe('real PostgreSQL automation flow', () => {
     for (const first of initial) await db.emailMessage.create({ data: { enrollmentId: first.enrollmentId, step: 1, provider: first.provider, recipient: first.recipient, sender: first.sender, replyTo: first.replyTo, subject: first.subject, body: 'Follow-up', unsubscribeUrl: first.unsubscribeUrl, scheduledAt: earlier } });
     await db.lead.create({ data: { placeId: 'new-introduction', name: 'New opportunity', address: 'KL', mapsUrl: '', category: 'Cafe', email: 'new@example.com', emailVerified: true, emailSource: 'Business site', score: 80 } });
     expect(await enroll(c)).toBe(1);
+    // This case tests queue eligibility, not equality between the database's
+    // DEFAULT now() and the worker's JavaScript clock. Make the new message due
+    // explicitly while keeping it behind the ten older follow-ups.
+    const due = await db.emailMessage.updateMany({ where: { recipient: 'new@example.com', step: 0, status: 'QUEUED' }, data: { scheduledAt: new Date(Date.now() - 60000) } });
+    expect(due.count).toBe(1);
     await worker();
     expect(send).toHaveBeenCalledTimes(1);
     expect(vi.mocked(send).mock.calls[0][0].recipient).toBe('new@example.com');
