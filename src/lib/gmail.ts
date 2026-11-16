@@ -1,16 +1,17 @@
 import { prisma } from './prisma';
-import { normalizeEmail } from './domain';
+import { normalizeEmail, validEmail } from './domain';
 import type { EmailMessage } from '@prisma/client';
 
 export const emailProvider = () => process.env.EMAIL_PROVIDER === 'resend' ? 'resend' : 'gmail';
 export function gmailConfigured() { return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN); }
-let tokenCache: { value: string; until: number } | null = null;
+let tokenCache: { value: string; until: number; credentials: string } | null = null;
 export async function gmailToken() {
-  if (tokenCache && tokenCache.until > Date.now()) return tokenCache.value;
+  const credentials = [process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GMAIL_REFRESH_TOKEN].join('\0');
+  if (tokenCache && tokenCache.credentials === credentials && tokenCache.until > Date.now()) return tokenCache.value;
   const response = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', signal: AbortSignal.timeout(12000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID ?? '', client_secret: process.env.GOOGLE_CLIENT_SECRET ?? '', refresh_token: process.env.GMAIL_REFRESH_TOKEN ?? '', grant_type: 'refresh_token' }) });
   const data = await response.json();
   if (!response.ok || typeof data.access_token !== 'string') throw new Error('Gmail connection failed. Reconnect the owner account.');
-  tokenCache = { value: data.access_token, until: Date.now() + Math.max(0, (Number(data.expires_in) || 3600) - 120) * 1000 };
+  tokenCache = { value: data.access_token, until: Date.now() + Math.max(0, (Number(data.expires_in) || 3600) - 120) * 1000, credentials };
   return tokenCache.value;
 }
 export async function gmailRequest(path: string, init?: RequestInit) {
@@ -20,16 +21,25 @@ export async function gmailRequest(path: string, init?: RequestInit) {
   return response.json();
 }
 export async function checkGmailIdentity(sender: string) {
+  if (!validEmail(sender)) throw new Error('Use one valid sender email address.');
   const profile = await gmailRequest('profile');
-  if (normalizeEmail(profile.emailAddress ?? '') !== normalizeEmail(sender)) throw new Error('Connected Gmail account does not match the workspace sender.');
+  const address = typeof profile.emailAddress === 'string' ? normalizeEmail(profile.emailAddress) : '';
+  if (!validEmail(address) || address !== normalizeEmail(sender)) throw new Error('Connected Gmail account does not match the workspace sender.');
 }
-export function gmailMime(message: EmailMessage) {
+function gmailAddresses(message: EmailMessage) {
+  const display = message.sender.match(/^(.*?)\s*<([^<>]+)>$/);
+  const mailbox = display?.[2] ?? message.sender;
+  const name = display?.[1] ?? mailbox;
+  if (/[<>\r\n]/.test(name) || !validEmail(mailbox) || !validEmail(message.recipient) || !validEmail(message.replyTo)) throw new Error('Gmail requires one valid sender, recipient and reply-to email address.');
+  return { mailbox, name };
+}
+export function gmailMime(message: EmailMessage, replyToMessageId?: string) {
   const encoded = (s: string) => `=?UTF-8?B?${Buffer.from(s).toString('base64')}?=`;
-  const mailbox = message.sender.match(/<([^>]+)>$/)?.[1] ?? message.sender;
-  const name = message.sender.replace(/\s*<[^>]+>$/, '');
+  const { mailbox, name } = gmailAddresses(message);
   const lines = [
     `From: ${encoded(name)} <${mailbox}>`, `To: ${message.recipient}`, `Reply-To: ${message.replyTo}`,
     `Subject: ${encoded(message.subject)}`, `Message-ID: <zwf.${message.id}@zero-web-finder.local>`,
+    ...(replyToMessageId ? [`In-Reply-To: ${replyToMessageId}`, `References: ${replyToMessageId}`] : []),
     'MIME-Version: 1.0', 'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64',
     `List-Unsubscribe: <${message.unsubscribeUrl}>`, 'List-Unsubscribe-Post: List-Unsubscribe=One-Click', '',
     Buffer.from(`${message.body}\n\nPrefer no further emails? Unsubscribe: ${message.unsubscribeUrl}`).toString('base64').match(/.{1,76}/g)!.join('\r\n'),
@@ -37,8 +47,16 @@ export function gmailMime(message: EmailMessage) {
   return Buffer.from(lines.join('\r\n')).toString('base64url');
 }
 export async function sendGmail(message: EmailMessage) {
-  await checkGmailIdentity(message.sender.match(/<([^>]+)>$/)?.[1] ?? message.sender);
-  const data = await gmailRequest('messages/send', { method: 'POST', body: JSON.stringify({ raw: gmailMime(message) }) });
+  const { mailbox } = gmailAddresses(message);
+  await checkGmailIdentity(mailbox);
+  let threadId: string | undefined, replyToMessageId: string | undefined;
+  if (message.step === 1) {
+    const first = await prisma.emailMessage.findUnique({ where: { enrollmentId_step: { enrollmentId: message.enrollmentId, step: 0 } } });
+    if (!first?.threadId || !first.sentAt || first.provider !== 'gmail' || first.subject !== message.subject) throw new Error('The original Gmail conversation could not be verified. Review this follow-up before sending.');
+    threadId = first.threadId;
+    replyToMessageId = `<zwf.${first.id}@zero-web-finder.local>`;
+  }
+  const data = await gmailRequest('messages/send', { method: 'POST', body: JSON.stringify({ raw: gmailMime(message, replyToMessageId), ...(threadId ? { threadId } : {}) }) });
   if (typeof data.id !== 'string' || typeof data.threadId !== 'string') throw new Error('Gmail did not return a delivery acknowledgement.');
   return { id: data.id as string, threadId: data.threadId as string };
 }

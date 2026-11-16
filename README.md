@@ -10,6 +10,13 @@ A private growth workspace for Afiq Amri: discover businesses, qualify contacts,
 - Personalized campaigns with explicit approval, frozen copy and sender details, audience filters, optional ongoing enrollment, pause/resume, and one optional follow-up.
 - Gmail sending as **afiqamri03@gmail.com**, with conversation reply checks before follow-ups. Resend is an optional alternative provider.
 - Global duplicate-contact protection, daily caps, Malaysia-time sending windows, unsubscribe suppression, activity logs, and protected owner access.
+- Actionable overview with replies, contact research, draft campaigns, uncertain messages, and failed searches; automation status explains setup, paused sending, worker problems, hours, and daily limits.
+- Lead quick views, sorting, filtered CSV exports, direct record links, editable business details, and stale-edit protection. Mobile leads use readable cards. Filters survive refresh and browser navigation.
+- Searchable, paginated email history across all saved messages; reusable campaign drafts; settings drafts retained while navigating inside the workspace.
+- Opportunity Studio: local, explainable scoring across five signals, research checklists, next actions, and editable introduction/project-brief drafts. It uses saved evidence without an external AI service or website requests.
+- A pipeline board with stage controls, estimated deal values, and dated next steps. Personal tasks support Malaysia-time deadlines, overdue/today/upcoming views, completion, reopening, editing, and guarded deletion.
+- CSV import with a write-free preview, row-level validation, duplicate detection, replay protection, and unverified contacts by default. Import up to 200 rows/120 KB at a time.
+- Keyboard quick search (`Ctrl+K` or `Cmd+K`) for pages and saved businesses, dashboard follow-up reminders, and responsive layouts for the new views.
 
 Revenue is entered from payments you collect. Pipeline value is an estimate. Neither is a promise of future income. Website-refresh scores are screening signals, not a technical audit.
 
@@ -43,7 +50,7 @@ The supported Webpack option is used for development and production builds becau
 
 ## Database upgrade — preserve existing leads
 
-This repository previously had a Prisma schema but no migration history. Three migrations now provide the original baseline, an additive workspace upgrade, and private-data access controls.
+This repository previously had a Prisma schema but no migration history. Five migrations now provide the original baseline, an additive workspace upgrade, private-data access controls, sales tasks, and lookup indexes. The latest migrations add a table and indexes without rewriting existing leads or outreach history.
 
 **Use a separate staging database or a restorable backup first. Do not reset or force-push a schema over an existing database.**
 
@@ -96,6 +103,12 @@ Gmail does not provide the idempotency guarantee used by the Resend adapter. Any
 3. In **Email campaigns**, choose an audience, write the message, and inspect personalized previews. One-time campaigns support up to 200 potential contacts; ongoing campaigns add at most 200 per worker pass. Suppressed and previously enrolled addresses are excluded.
 4. Approve the campaign, then enable the master sending switch in Settings. Sending follows the daily cap and configured weekday/hour window in `Asia/Kuala_Lumpur`.
 5. Record replies, calls, proposals, wins, losses, deal values, and actual collected payments. Replies, opt-outs, progressed stages, invalidated contacts, and changed email addresses stop follow-ups.
+
+Use **Lead workspace → Import CSV** for an existing spreadsheet. Download the sample or paste comma-separated data with a `name` column; optional headings are `category`, `address`, `email`, `phone`, `website`, `source`, and `notes`. Preview first. The final import adds valid new rows and skips invalid/duplicate rows, preserving existing records. Sources are provenance notes. Website links are research candidates, not an assessment of quality.
+
+Open **Opportunity studio** to prioritize saved leads and prepare a working brief or introduction. The score is an ordering heuristic, not a conversion probability or inferred client budget. It scans the 500 most recently updated open leads and shows up to 100 recommendations, with explicit coverage counts. Saved opt-outs and suppression are excluded; previous outreach and shared mailboxes hold new introductions. The algorithm needs no external AI, but the app still needs its database connection. Copy edited drafts before closing their panel.
+
+Use **Pipeline & tasks** to move a deal and give its next step a due date. Tasks are internal reminders; they do not email clients. Moving a lead to Won leaves collected revenue unchanged. Record actual payments separately in the lead editor. The overview shows overdue tasks and tasks still due today in Malaysia time.
 
 Changing sender identity or offer pauses active campaigns. Existing approved messages keep their original snapshot; create a new campaign to use new copy or identity. A one-time audience does not grow when a campaign resumes. With ongoing enrollment, approval also covers future verified leads matching the approved rules.
 
@@ -150,9 +163,20 @@ In another terminal:
 
 ```powershell
 npm run test:browser
+npm run test:navigation
+npm run test:workspace
+npm run test:growth
 ```
 
 The preview uses a random local password in ignored `.local/preview-access.json`, an in-memory database, and no real sender credentials. Its banner clearly labels it a test workspace. Stopping the preview discards its records. Browser screenshots and a report are saved under ignored `test-results/`.
+
+For an interactive preview that updates as source files change, set `$env:PREVIEW_DEV='true'` before starting the preview. This uses Next.js's separate development output directory and can remain running during a production build. Run `node scripts/seed-preview.mjs` to add four clearly labelled fictional businesses and two tasks; it refuses a normal or sending-enabled workspace. Re-running it preserves existing matching samples.
+
+For a separate QA instance, set `$env:PREVIEW_PORT='3101'` in both the preview and test terminals. Each non-default port gets its own ignored access file, so QA does not replace the password or data in the interactive preview on port 3100. All preview processes bind only to `127.0.0.1`.
+
+The extra browser checks cover URL/filter navigation, matching CSV exports, direct lead links, verification reset after email edits, settings draft recovery, delivery views, keyboard navigation, and mobile layout. Fictional businesses added by these checks are only preview fixtures. The refined screenshots use `dashboard-refined-desktop.png`, `dashboard-refined-mobile.png`, and `leads-refined-mobile.png` in `test-results/`.
+
+The growth check follows CSV preview/import and replay, contact verification, local analysis and copying drafts, task creation in MYT, completion/reopening, stage movement without invented revenue, dashboard task links, keyboard search, and mobile layouts. Its report is `test-results/growth-report.json`; screenshots start with `growth-`.
 
 The optional `node scripts/discovery-check.mjs` performs two small public Google Maps searches through that isolated preview. It requires internet access, pauses the preview's queued searches first, and leaves sending disabled. It is separate from the offline test suite.
 

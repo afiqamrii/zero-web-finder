@@ -4,7 +4,7 @@ import { failure, HttpError, integer, jsonBody, str, boolean } from '@/lib/http'
 import { normalizeEmail, validEmail } from '@/lib/domain';
 import { emailProvider, gmailConfigured, checkGmailIdentity } from '@/lib/gmail';
 export async function GET() {
-  try { const settings = await workspace(); return Response.json({ provider: emailProvider(), settings: { ...settings, leaseToken: undefined }, connections: connectionStatus(settings), blockers: sendingBlockers(settings) }); } catch (e) { return failure(e); }
+  try { const settings = await workspace(); return Response.json({ preview: process.env.LOCAL_TEST_WORKSPACE === 'true', provider: emailProvider(), settings: { ...settings, leaseToken: undefined }, connections: connectionStatus(settings), blockers: sendingBlockers(settings) }); } catch (e) { return failure(e); }
 }
 export async function PATCH(request: Request) {
   try {

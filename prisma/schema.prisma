@@ -43,10 +43,27 @@ model Lead {
   lastContactedAt DateTime?
   optedOutAt    DateTime?
   enrollment    Enrollment?
+  tasks         SalesTask[]
 
   @@index([status, createdAt])
   @@index([email])
   @@index([score, createdAt])
+  @@index([updatedAt(sort: Desc), id])
+}
+
+model SalesTask {
+  id          String   @id @default(uuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  title       String
+  dueAt       DateTime
+  status      String   @default("OPEN")
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, dueAt, id])
+  @@index([leadId, status, dueAt])
 }
 
 model Campaign {

@@ -1,5 +1,70 @@
 # Verification record
 
+## Growth tools and local analysis — 16 November 2026
+
+This follow-up adds usable workflows to the existing application. The interactive preview is a temporary, loopback-only workspace with disconnected sending accounts. A separate temporary instance is used for browser QA. No hosted database was migrated, no hosting was purchased, and no real email was sent.
+
+| Area | Implemented result |
+| --- | --- |
+| Opportunity Studio | Five deterministic score components, explained evidence, research checklist, next actions, editable/copyable introductions and project briefs. The algorithm reads saved records, checks suppression and prior outreach, and makes no external AI or website requests. It scans the latest 500 updated open records and shows up to 100 recommendations with explicit coverage counts. |
+| Sales pipeline | Accessible stage selectors, complete stage counts and estimated values, bounded cards with paginated expansion, task previews, search and priority filters. Moving to Won leaves collected revenue unchanged. |
+| Follow-up tasks | Persisted personal tasks with MYT deadlines, overdue/today/upcoming/completed views, editing, completion, reopening, and guarded deletion. Stale edits are rejected and changes are logged transactionally. Tasks do not send messages. |
+| CSV import | Write-free preview, row-specific validation, normalized email deduplication, replay-safe imported identities, and explicit commit. Existing records are preserved; imported emails stay unverified. The input is bounded to 200 rows and 120 KB. |
+| Overview and navigation | Due-task summaries, exact-record keyboard search, two new workspaces, responsive layouts, and a local-analysis entry point. Pipeline panes and due views survive navigation and reload. |
+| Query and loading work | Dashboard polling no longer fetches up to 40 unused messages or full lead research blobs. Settings load on first visit. Additive indexes support latest-record scans and normalized mailbox lookups. These are implementation improvements, not a measured production speedup percentage. |
+| Reliability and accessibility | Streaming request-size limits; discarded previews after failed file selection; plain-text provenance notes; clean-settings rebasing while preserving dirty drafts; successful hidden saves clear stale warnings; explicit form-label associations keep populated textarea contents out of field labels. |
+
+The two new migrations add `SalesTask`, constraints, RLS/private-role restrictions, and non-unique lookup indexes. Existing lead and outreach rows are preserved. Migration fixtures now discover and apply the complete sorted migration history after inserting a legacy lead at the original baseline.
+
+The analysis score prioritizes work; it is not a sale probability, client budget, website audit, or promise of earnings. The app still needs a database connection to load saved records. Draft edits last until the analysis panel closes and must be copied to keep them.
+
+### Final verification for the growth upgrade
+
+- **129 tests passed in 15 files** against temporary PostgreSQL databases, pure algorithms, and component fixtures. The suite covers migration preservation/RLS/indexes, task stale writes and date boundaries, import replay and limits, analysis exclusions, and preview/live connection controls.
+- The final production Webpack build and TypeScript checks pass. Full lint has zero errors and three pre-existing image warnings in unused legacy components; final changed-file lint also passes.
+- `browser-check.mjs`, `workspace-check.mjs`, `lead-navigation-check.mjs`, and `growth-check.mjs` passed during this upgrade. The final growth run verified the complete import → verify → analyze/copy → task → stage → dashboard/search flow, with no browser runtime errors or page overflow at 390 px.
+- Browser testing found and fixed populated textarea labels and an off-screen screen-reader label escaping the pipeline's scroll container. The board now establishes its own positioning boundary; horizontal column scrolling no longer widens the document.
+- Desktop Opportunity Studio and the 390 px mobile pipeline were visually inspected. Final artifacts include `growth-report.json`, `growth-studio-desktop.png`, `growth-dashboard-desktop.png`, `growth-studio-mobile.png`, and `growth-pipeline-mobile.png` under ignored `test-results/`.
+- The final core browser fixture observed dashboard responses of 74, 84, 57, 64, and 75 ms. These are small local-fixture timings, not a production benchmark or percentage speedup.
+- Current credential-presence check: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GMAIL_REFRESH_TOKEN` are absent from both environment files; `.local/launch` has no downloaded Google client file. The temporary preview now explicitly disables Gmail connection testing. No real Gmail connection or sending is claimed.
+
+The earlier review below is retained as a separate phase; its statement that no schema changes were needed does not describe the new additive migrations above.
+
+## UI and workflow review — 16 November 2026
+
+This pass improves the existing application locally. It does not deploy, migrate the hosted database, connect paid services, or send real email. No database schema changes were needed. The unrelated nested checkout remains untouched.
+
+### Findings and fixes
+
+| Area | Problem found | Result |
+| --- | --- | --- |
+| Overview | Decorative content pushed useful work down the page; an enabled switch could look operational despite blockers. | Metrics appear first, followed by accurate automation status and next actions for replies, contact research, drafts, uncertain messages, and failed searches. |
+| Navigation | Tabs were not addressable; refreshing or navigating Back could lose the current view. Priority lead buttons opened only the general list. | URL-based tabs and lead filters, direct record links, and tested Back/Forward behavior. |
+| Lead exports | Export ignored search and filters. | CSV uses the same audience and sort order as the visible view, across pages. Exports above 10,000 matching records ask for narrower filters instead of silently truncating. |
+| Lead editing | Changing an address retained its verification checkbox; duplicate emails could be added by editing. An old editor snapshot could overwrite a worker update. | Email edits reset verification, duplicate checks are consistent, reopening fetches a fresh record, and stale saves receive a conflict without discarding the draft. |
+| Lead research | Existing business details could not be edited; paging could become empty after edits. | Editable business/contact details, quick views and sorting, stable ordering, and server-clamped pagination. |
+| Campaign review | Approved previews recalculated a new audience instead of showing enrolled messages. Concurrent or stale actions could overwrite campaign state. | Frozen message previews, enrolled counts, explicit ongoing-audience details, reusable drafts, and guarded state transitions. |
+| Email queue | Disabled or unchecked follow-ups at the front of a batch could block new introductions. | Eligibility is applied before the batch limit, with regressions covering starvation. |
+| Gmail follow-ups | Follow-ups created new threads, weakening reply detection. | Original subject, thread ID, and reply headers are retained. Transport behavior is mocked in tests; live Gmail remains unverified. |
+| Worker resilience | A Gmail reply-check failure also stopped business discovery. | Email stays paused for that pass while discovery can continue; the warning is visible and repeated identical errors do not flood activity. |
+| Contact eligibility | Legacy mixed-case addresses could bypass suppression; missing sources and malformed bare addresses could reach later stages. | Case-insensitive exclusions, canonical new enrollments, source checks at enrollment/send, and single-mailbox validation before provider requests. |
+| Settings | Refreshing settings remounted the form and could lose edits/save feedback. | Stable controlled drafts, retained settings while navigating within the workspace, persistent save feedback, schedule validation, and provider-specific connection guidance. |
+| Delivery history | Only the latest 40 messages were visible, hiding older problems. Gmail acceptance could be confused with delivery. | Search and pagination across saved messages, attention/status filters, accurate acceptance counts, and explicit provider semantics. |
+| Data loading | A filter change could briefly show previous results; old responses could overwrite the new view. | URL-keyed results, guarded abort handling, retry states, and stale-update messaging. |
+| Accessibility/mobile | A click on dialog padding closed the editor; dialogs had no accessible name; field hints became part of the field name. Mobile menu focus could escape. | Named dialogs, safe backdrop handling, separate labels/descriptions, focus containment/restoration, Escape support, readable mobile lead cards, larger text, and improved contrast. |
+
+### Verification for this pass
+
+- **75 tests passed in nine files**, including temporary PostgreSQL integration tests and component tests. All provider sending is mocked.
+- Production Webpack build and TypeScript pass. Full lint has zero errors and the same three retained legacy image warnings; the final changed-file lint passes.
+- Database tests cover existing-lead preservation, filtered exports, stale edit rejection, campaign actions, queue selection, Gmail threading, malformed mailbox rejection, attention metrics, and paginated history containing messages older than the former 40-message limit.
+- No full concurrency/load test or hosted Supabase/Render/Gmail verification was performed. Local PostgreSQL fixtures use one connection; transaction isolation is implemented, but a multi-connection race benchmark is not claimed.
+- Browser evidence and final screenshots are saved in ignored `test-results/`. Fixture names, deal values, and payments are demonstrations, not actual clients or revenue.
+- The original browser workflow, `lead-navigation-check.mjs`, and `workspace-check.mjs` all passed. The additional flows verified filtered CSV content, direct lead loading, email verification reset, settings persistence across tabs/save/refresh, delivery-filter reload, mobile focus containment/restoration, safe dialog padding, and no page overflow or browser runtime errors.
+- Final desktop (1440 × 1100), mobile overview (390 × 844), and mobile lead-card screenshots were visually inspected. The last five small-fixture dashboard responses took **45, 43, 56, 43, and 42 ms**; these are local observations, not a production speedup claim.
+
+The October checks below are retained as historical evidence; they are not a claim of a production launch.
+
 Verified locally on 16 October 2026. This records implementation checks, not a production launch or revenue result.
 
 ## Automated checks

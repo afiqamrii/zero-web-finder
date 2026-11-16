@@ -7,10 +7,16 @@ export type JobRecord = Serialized<DiscoveryJob>;
 export type ActivityRecord = Serialized<Activity>;
 export type Connections = Record<'access' | 'email' | 'webhook' | 'scheduler' | 'publicUrl' | 'sender' | 'replies', boolean>;
 export type DashboardData = {
+  serverTime: string;
+  provider: 'gmail' | 'resend';
+  accepted: number;
+  attention: { replies: number; unverified: number; drafts: number; reviewMessages: number; failedSearches: number; queuedMessages: number };
+  taskSummary: { overdue: number; today: number; due: { id: string; title: string; dueAt: string; lead: { id: string; name: string } }[] };
+  automation: { state: string; label: string; detail: string; nextWindowAt: string | null };
   preview: boolean;
   workerOnline: boolean;
   settings: Pick<SettingsRecord, 'dailyLimit' | 'sendingEnabled' | 'lastWorkerAt' | 'lastWorkerError' | 'sendStartHour' | 'sendEndHour' | 'weekdaysOnly'>;
   connections: Connections; blockers: string[]; stages: { status: string; _count: number; _sum: { dealValueCents: number | null } }[];
-  revenue: number; emailStates: { status: string; _count: number }[]; today: number; activity: ActivityRecord[]; topLeads: LeadRecord[]; campaigns: number; jobs: number; verified: number;
-  recentMessages: { id: string; subject: string; recipient: string; status: string; error: string | null; sentAt: string | null; scheduledAt: string; step: number; enrollment: { lead: { name: string }; campaign: { name: string } } }[];
+  revenue: number; emailStates: { status: string; _count: number }[]; today: number; activity: ActivityRecord[]; topLeads: Pick<LeadRecord, 'id' | 'name' | 'category' | 'address' | 'score'>[]; campaigns: number; jobs: number; verified: number;
 };
+export type MessageRecord = { id: string; subject: string; recipient: string; status: string; provider: string; error: string | null; sentAt: string | null; scheduledAt: string; step: number; enrollment: { lead: { id: string; name: string }; campaign: { name: string } } };

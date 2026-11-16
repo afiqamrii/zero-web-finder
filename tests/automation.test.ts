@@ -27,7 +27,7 @@ beforeEach(async () => {
   await db.workspace.create({ data: { id: 'owner', senderName: 'Test Owner', senderEmail: 'owner@example.com', replyTo: 'owner@example.com', businessAddress: 'Test business address', sendingEnabled: true, sendStartHour: 0, sendEndHour: 24, weekdaysOnly: false, dailyLimit: 20 } });
   vi.mocked(send).mockReset(); vi.mocked(send).mockImplementation(async m => ({ id: `provider-${m.id}`, threadId: null }));
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 afterAll(async () => { await db?.$disconnect(); await local?.close(); });
 async function campaign(count = 1, approved = true) {
   const c = await db.campaign.create({ data: { name: 'Test campaign', subject: 'Hello {{business}}', body: 'A useful website idea for {{business}}.', status: approved ? 'ACTIVE' : 'DRAFT', approvedAt: approved ? new Date() : null, followUpBody: 'Following up with {{business}}.', followUpDays: 3 } });
@@ -111,5 +111,112 @@ describe('real PostgreSQL automation flow', () => {
     const c = await campaign(2); await enroll(c); vi.mocked(send).mockRejectedValue(new Error('Connection interrupted'));
     await worker(); expect(send).toHaveBeenCalledTimes(1); expect(await db.emailMessage.count({ where: { status: 'REVIEW' } })).toBe(1); expect(await db.emailMessage.count({ where: { status: 'QUEUED' } })).toBe(1);
     await worker(); expect(await db.emailMessage.count({ where: { status: 'REVIEW' } })).toBe(2); expect(vi.mocked(send).mock.calls[0][0].id).not.toBe(vi.mocked(send).mock.calls[1][0].id);
+  });
+  it('requires a real contact source at enrollment and rechecks it before sending', async () => {
+    const c = await campaign(4);
+    await db.lead.update({ where: { placeId: 'p0' }, data: { emailSource: null } });
+    await db.lead.update({ where: { placeId: 'p1' }, data: { emailSource: '' } });
+    await db.lead.update({ where: { placeId: 'p2' }, data: { emailSource: '   ' } });
+    expect(await enroll(c)).toBe(1);
+    await db.lead.update({ where: { placeId: 'p3' }, data: { emailSource: '' } });
+    await worker();
+    expect(send).not.toHaveBeenCalled();
+    expect((await db.emailMessage.findFirstOrThrow()).status).toBe('CANCELLED');
+  });
+  it('does not let disabled follow-ups block new introductions behind them', async () => {
+    const c = await campaign(10); await enroll(c);
+    const initial = await db.emailMessage.findMany();
+    const earlier = new Date(Date.now() - 5 * 86400000);
+    await db.emailMessage.updateMany({ data: { status: 'DELIVERED', sentAt: earlier } });
+    for (const first of initial) await db.emailMessage.create({ data: { enrollmentId: first.enrollmentId, step: 1, provider: first.provider, recipient: first.recipient, sender: first.sender, replyTo: first.replyTo, subject: first.subject, body: 'Follow-up', unsubscribeUrl: first.unsubscribeUrl, scheduledAt: earlier } });
+    await db.lead.create({ data: { placeId: 'new-introduction', name: 'New opportunity', address: 'KL', mapsUrl: '', category: 'Cafe', email: 'new@example.com', emailVerified: true, emailSource: 'Business site', score: 80 } });
+    expect(await enroll(c)).toBe(1);
+    await worker();
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(send).mock.calls[0][0].recipient).toBe('new@example.com');
+    expect(await db.emailMessage.count({ where: { step: 1, status: 'QUEUED' } })).toBe(10);
+  });
+  it('previews the frozen enrolled messages after approval instead of a new audience', async () => {
+    const c = await campaign(1, false); const { PATCH, GET } = await import('@/app/api/campaigns/[id]/route');
+    const context = { params: Promise.resolve({ id: c.id }) };
+    expect((await PATCH(request('/campaign', { action: 'approve' }), context)).status).toBe(200);
+    const frozen = await db.emailMessage.findFirstOrThrow();
+    await db.lead.update({ where: { placeId: 'p0' }, data: { name: 'Changed business name' } });
+    await db.lead.create({ data: { placeId: 'new-match', name: 'Later contact', address: 'KL', mapsUrl: '', category: 'Cafe', email: 'later@example.com', emailVerified: true, emailSource: 'Business site', score: 80 } });
+    const preview = await (await GET(request('/campaign', {}), context)).json();
+    expect(preview).toMatchObject({ audience: 'enrolled', total: 1, potentialTotal: 1 });
+    expect(preview.previews).toHaveLength(1);
+    expect(preview.previews[0]).toMatchObject({ email: frozen.recipient, subject: frozen.subject, body: frozen.body, includesSignature: true, status: 'QUEUED', unsubscribeUrl: frozen.unsubscribeUrl });
+  });
+  it('accepts only one concurrent approval and preserves the reviewed audience', async () => {
+    const c = await campaign(1, false); const { PATCH } = await import('@/app/api/campaigns/[id]/route');
+    const context = { params: Promise.resolve({ id: c.id }) };
+    const responses = await Promise.all([PATCH(request('/campaign', { action: 'approve' }), context), PATCH(request('/campaign', { action: 'approve' }), context)]);
+    expect(responses.map(r => r.status).sort()).toEqual([200, 409]);
+    expect(await db.enrollment.count()).toBe(1);
+    expect(await db.emailMessage.count()).toBe(1);
+  });
+  it('rejects a stale campaign action without overwriting a newer state', async () => {
+    const c = await campaign();
+    const stale = await db.campaign.update({ where: { id: c.id }, data: { status: 'PAUSED' } });
+    await db.campaign.update({ where: { id: c.id }, data: { status: 'ACTIVE' } });
+    vi.spyOn(db.campaign, 'findUniqueOrThrow').mockResolvedValueOnce(stale);
+    const { PATCH } = await import('@/app/api/campaigns/[id]/route');
+    const response = await PATCH(request('/campaign', { action: 'resume' }), { params: Promise.resolve({ id: c.id }) });
+    expect(response.status).toBe(409);
+    expect(await db.enrollment.count()).toBe(0);
+    expect((await db.campaign.findUniqueOrThrow({ where: { id: c.id } })).status).toBe('ACTIVE');
+  });
+  it('rejects a stale discovery pause after a worker claims the search', async () => {
+    const stale = await db.discoveryJob.create({ data: { city: 'KL', category: 'Cafe' } });
+    await db.discoveryJob.update({ where: { id: stale.id }, data: { status: 'RUNNING', lastRunAt: new Date() } });
+    vi.spyOn(db.discoveryJob, 'findUniqueOrThrow').mockResolvedValueOnce(stale);
+    const { PATCH } = await import('@/app/api/automation/route');
+    const response = await PATCH(request('/automation', { id: stale.id, action: 'pause' }));
+    expect(response.status).toBe(409);
+    expect(await db.discoveryJob.findUniqueOrThrow({ where: { id: stale.id } })).toMatchObject({ status: 'RUNNING', enabled: true });
+  });
+  it('excludes legacy mixed-case suppressed addresses and deduplicates canonical mailboxes', async () => {
+    const c = await campaign(3);
+    await db.lead.update({ where: { placeId: 'p0' }, data: { email: 'BUSINESS0@EXAMPLE.COM' } });
+    await db.suppression.create({ data: { email: 'business0@example.com', reason: 'Opted out' } });
+    await db.lead.update({ where: { placeId: 'p1' }, data: { email: 'Shared@Example.com' } });
+    await db.lead.update({ where: { placeId: 'p2' }, data: { email: 'shared@example.com' } });
+    const { audienceWhere, unavailableEmails } = await import('@/lib/campaigns');
+    expect(await db.lead.count({ where: audienceWhere(c, await unavailableEmails()) })).toBe(2);
+    expect(await enroll(c)).toBe(1);
+    expect((await db.emailMessage.findFirstOrThrow()).recipient).toBe('shared@example.com');
+    await db.suppression.create({ data: { email: 'SHARED@EXAMPLE.COM', reason: 'Legacy suppression' } });
+    await worker();
+    expect(send).not.toHaveBeenCalled();
+    expect((await db.emailMessage.findFirstOrThrow()).status).toBe('CANCELLED');
+  });
+  it('suppresses legacy mixed-case records together without duplicate suppression entries', async () => {
+    const c = await campaign(); await enroll(c);
+    await db.lead.update({ where: { placeId: 'p0' }, data: { email: 'BUSINESS0@EXAMPLE.COM' } });
+    await db.suppression.create({ data: { email: 'Business0@Example.com', reason: 'Legacy opt-out' } });
+    const { suppress } = await import('@/lib/suppression');
+    await suppress(' BUSINESS0@EXAMPLE.COM ', 'Opted out');
+    expect(await db.suppression.count()).toBe(1);
+    expect((await db.lead.findFirstOrThrow()).status).toBe('DO_NOT_CONTACT');
+    expect((await db.enrollment.findFirstOrThrow()).status).toBe('STOPPED');
+    expect((await db.emailMessage.findFirstOrThrow()).status).toBe('CANCELLED');
+  });
+  it('keeps discovery running while Gmail reply checks fail and holds all email', async () => {
+    process.env.EMAIL_PROVIDER = 'gmail';
+    Object.assign(process.env, { GOOGLE_CLIENT_ID: 'test-client', GOOGLE_CLIENT_SECRET: 'test-secret', GMAIL_REFRESH_TOKEN: 'test-refresh' });
+    const c = await campaign(2); await enroll(c);
+    const first = await db.emailMessage.findFirstOrThrow();
+    await db.emailMessage.update({ where: { id: first.id }, data: { status: 'SENT', providerId: 'original', threadId: 'thread-1', sentAt: new Date(Date.now() - 3 * 86400000) } });
+    const job = await db.discoveryJob.create({ data: { city: 'KL', category: 'Cafe' } });
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Gmail is temporarily unavailable')));
+    const result = await worker();
+    expect(result).toMatchObject({ busy: false, sent: 0, warning: expect.stringContaining('reply checks') });
+    expect(send).not.toHaveBeenCalled();
+    expect((await db.discoveryJob.findUniqueOrThrow({ where: { id: job.id } })).status).toBe('COMPLETED');
+    expect((await db.workspace.findUniqueOrThrow({ where: { id: 'owner' } })).lastWorkerError).toContain('reply checks');
+    await worker();
+    expect(await db.activity.count({ where: { kind: 'ERROR' } })).toBe(1);
+    expect(send).not.toHaveBeenCalled();
   });
 });

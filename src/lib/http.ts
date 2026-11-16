@@ -2,8 +2,22 @@ import { Prisma } from '@prisma/client';
 
 export class HttpError extends Error { constructor(public status: number, message: string) { super(message); } }
 export async function jsonBody(request: Request): Promise<Record<string, unknown>> {
-  const text = await request.text();
-  if (text.length > 250_000) throw new HttpError(413, 'Request is too large.');
+  const limit = 250_000;
+  if (Number(request.headers.get('content-length')) > limit) throw new HttpError(413, 'Request is too large.');
+  const reader = request.body?.getReader();
+  if (!reader) throw new HttpError(400, 'Enter a valid request.');
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) { await reader.cancel(); throw new HttpError(413, 'Request is too large.'); }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const text = Buffer.concat(chunks).toString('utf8');
   try { const data = JSON.parse(text); if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error(); return data; }
   catch { throw new HttpError(400, 'Enter a valid request.'); }
 }

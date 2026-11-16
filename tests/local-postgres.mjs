@@ -1,16 +1,18 @@
 import net from 'node:net';
 import { PGlite } from '@electric-sql/pglite';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 // Test-only PostgreSQL wire bridge. One client connection at a time, bound only
 // to loopback. The application and tests use connection_limit=1. Never deploy.
 export async function localPostgres({ port = 0, seed = false } = {}) {
   const db = new PGlite();
   await db.waitReady;
-  await db.exec(await readFile('prisma/migrations/202610160001_baseline/migration.sql', 'utf8'));
-  if (seed) await db.exec(`INSERT INTO "Lead" (id,"placeId",name,address,"mapsUrl",category,notes,"updatedAt") VALUES ('legacy-test','legacy-place','Preserved test business','Kuala Lumpur','','Café','Keep this original note',now());`);
-  await db.exec(await readFile('prisma/migrations/202610160002_growth_workspace/migration.sql', 'utf8'));
-  await db.exec(await readFile('prisma/migrations/202610160003_private_data/migration.sql', 'utf8'));
+  const migrations = (await readdir('prisma/migrations', { withFileTypes: true })).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
+  for (const migration of migrations) {
+    await db.exec(await readFile(`prisma/migrations/${migration}/migration.sql`, 'utf8'));
+    // Insert the old record before upgrades so every subsequent migration must preserve it.
+    if (seed && migration === '202610160001_baseline') await db.exec(`INSERT INTO "Lead" (id,"placeId",name,address,"mapsUrl",category,notes,"updatedAt") VALUES ('legacy-test','legacy-place','Preserved test business','Kuala Lumpur','','Café','Keep this original note',now());`);
+  }
   const packet = (type, payload) => { const p = Buffer.from(payload); const b = Buffer.alloc(5 + p.length); b[0] = type.charCodeAt(0); b.writeInt32BE(p.length + 4, 1); p.copy(b, 5); return b; };
   const sockets = new Set();
   const server = net.createServer(socket => {

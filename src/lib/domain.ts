@@ -1,9 +1,15 @@
 export const STATUSES = ['NEW', 'CONTACTED', 'WHATSAPP_SENT', 'REPLIED', 'CALL_SCHEDULED', 'PROPOSAL_SENT', 'WON', 'CLOSED', 'LOST', 'DO_NOT_CONTACT'] as const;
 export const STATUS_LABELS: Record<string, string> = { NEW: 'New lead', CONTACTED: 'Contacted', WHATSAPP_SENT: 'WhatsApp sent', REPLIED: 'Replied', CALL_SCHEDULED: 'Call booked', PROPOSAL_SENT: 'Proposal sent', WON: 'Won', CLOSED: 'Closed (legacy)', LOST: 'Lost', DO_NOT_CONTACT: 'Do not contact' };
 export const STOP_STATUSES = ['REPLIED', 'CALL_SCHEDULED', 'PROPOSAL_SENT', 'WON', 'CLOSED', 'LOST', 'DO_NOT_CONTACT'];
-export const EMAIL_PATTERN = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+// A single bare mailbox: display names, quoted local parts and address lists are not supported.
+export const EMAIL_PATTERN = /^[\p{L}\p{N}\p{M}!#$%&'*+/=?^_`{|}~.\-]+@[\p{L}\p{N}\p{M}.\-]+\.[\p{L}\p{N}\p{M}.\-]+$/u;
 export function normalizeEmail(value: string) { return value.trim().toLowerCase(); }
-export function validEmail(value: string) { return value.length <= 254 && EMAIL_PATTERN.test(value); }
+export function validEmail(value: string) {
+  if (value.length > 254 || !EMAIL_PATTERN.test(value)) return false;
+  const [local, domain] = value.split('@');
+  if (local.length > 64 || local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
+  return domain.split('.').every(label => label.length <= 63 && /^[\p{L}\p{N}](?:[\p{L}\p{N}\p{M}-]*[\p{L}\p{N}\p{M}])?$/u.test(label));
+}
 export function leadScore(lead: { leadType: string; email?: string | null; emailVerified?: boolean; phone?: string | null; rating?: number | null; reviewCount?: number | null }) {
   return Math.min(100, (lead.leadType === 'NO_WEBSITE' ? 30 : 20) + (lead.email ? 10 : 0) + (lead.emailVerified ? 20 : 0) + (lead.phone ? 10 : 0) + ((lead.rating ?? 0) >= 4 ? 15 : 0) + ((lead.reviewCount ?? 0) >= 20 ? 15 : 0));
 }

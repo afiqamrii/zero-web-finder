@@ -1,11 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { csvCell, inSendingWindow, leadScore, malaysiaDayStart, normalizeEmail, renderTemplate, safeWebUrl, templateValid } from './domain';
+import { csvCell, inSendingWindow, leadScore, malaysiaDayStart, normalizeEmail, renderTemplate, safeWebUrl, templateValid, validEmail } from './domain';
 import { publicAddress } from './public-url';
 import { verifyWebhook } from './webhook-signature';
 import { createSession, validSession, sameOrigin } from './auth';
 describe('outreach boundaries', () => {
   it('scores observed facts without inventing contact verification', () => { expect(leadScore({ leadType: 'NO_WEBSITE', email: 'a@b.com', phone: '123', rating: 4.5, reviewCount: 30 })).toBe(80); expect(leadScore({ leadType: 'NO_WEBSITE', email: 'a@b.com', emailVerified: true, phone: '123', rating: 4.5, reviewCount: 30 })).toBe(100); });
   it('normalizes emails and rejects unsupported template variables', () => { expect(normalizeEmail(' A@Example.com ')).toBe('a@example.com'); expect(templateValid('{{business}} / {{offer}}')).toBe(true); expect(templateValid('{{secret}}')).toBe(false); expect(renderTemplate('Hi {{business}}', { business: 'Kopi' })).toBe('Hi Kopi'); });
+  it('accepts single bare mailboxes with normal plus tags and international letters', () => {
+    for (const email of ['afiqamri03@gmail.com', 'Owner.Name+projects@sub.example.com', "o'connor@example.ie", 'first_last@example.my', 'élise+projet@exemple.fr', '用户@例子.公司', 'owner@xn--bcher-kva.example']) expect(validEmail(email), email).toBe(true);
+  });
+  it('rejects address lists, header syntax and malformed mailbox dots or domains', () => {
+    for (const email of ['a,b@example.com', 'a;b@example.com', 'mailto:foo@example.com', 'a@example.com,b@example.com', 'a@example.com;other@example.com', 'Name <a@example.com>', '"quoted"@example.com', 'a\\b@example.com', 'a(comment)@example.com', '.a@example.com', 'a.@example.com', 'a..b@example.com', 'a@example..com', 'a@-example.com', 'a@example-.com', 'a@exam_ple.com', 'a@[127.0.0.1]', 'a@example.com\r\nBcc: other@example.com', 'a\0b@example.com', 'a@example.com/path', `${'a'.repeat(65)}@example.com`, `a@${'b'.repeat(64)}.com`]) expect(validEmail(email), JSON.stringify(email)).toBe(false);
+  });
   it('uses Malaysia day boundaries and exclusive end hours', () => { const s = { sendStartHour: 9, sendEndHour: 17, weekdaysOnly: true }; expect(inSendingWindow(s, new Date('2026-10-16T01:00:00Z'))).toBe(true); expect(inSendingWindow(s, new Date('2026-10-16T09:00:00Z'))).toBe(false); expect(inSendingWindow(s, new Date('2026-10-17T01:00:00Z'))).toBe(false); expect(malaysiaDayStart(new Date('2026-10-15T19:00:00Z')).toISOString()).toBe('2026-10-15T16:00:00.000Z'); });
   it('neutralizes spreadsheet formulas and executable links', () => { expect(csvCell('=1+1')).toBe('"\'=1+1"'); expect(csvCell(' a,b')).toBe('" a,b"'); expect(safeWebUrl('javascript:alert(1)')).toBeNull(); expect(safeWebUrl('https://example.com')).toBe('https://example.com/'); });
   it('blocks private and metadata addresses for website inspection', () => { for (const ip of ['127.0.0.1', '10.0.0.1', '169.254.169.254', '172.16.0.1', '192.168.1.1', '::1', '::ffff:127.0.0.1', 'fe80::1', 'fc00::1']) expect(publicAddress(ip)).toBe(false); expect(publicAddress('8.8.8.8')).toBe(true); });

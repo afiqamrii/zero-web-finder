@@ -1,17 +1,20 @@
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import { failure, HttpError, jsonBody, str } from '@/lib/http';
-import { leadScore, normalizeEmail, validEmail } from '@/lib/domain';
+import { leadScore, normalizeEmail, validEmail, safeWebUrl } from '@/lib/domain';
 import { randomUUID } from 'node:crypto';
 import { recordActivity } from '@/lib/workspace';
+import { leadOrder, leadWhere, parseLeadFilters } from '@/lib/lead-filters';
 export async function GET(request: Request) {
   try {
-    const p = new URL(request.url).searchParams;
-    const page = Math.max(1, Math.min(100000, Math.floor(Number(p.get('page')) || 1)));
-    const q = (p.get('q') ?? '').slice(0, 100).trim();
-    const where: Prisma.LeadWhereInput = { ...(p.get('status') && p.get('status') !== 'ALL' ? { status: p.get('status')! } : {}), ...(p.get('type') && p.get('type') !== 'ALL' ? { leadType: p.get('type')! } : {}), ...(p.get('starred') === 'true' ? { isStarred: true } : {}), ...(q ? { OR: ['name', 'category', 'address', 'email', 'phone'].map(key => ({ [key]: { contains: q, mode: 'insensitive' } })) } : {}) };
-    const [leads, total] = await prisma.$transaction([prisma.lead.findMany({ where, orderBy: [{ isStarred: 'desc' }, { score: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }], skip: (page - 1) * 25, take: 25 }), prisma.lead.count({ where })]);
-    return Response.json({ leads, total, page, pages: Math.max(1, Math.ceil(total / 25)) });
+    const filters = parseLeadFilters(new URL(request.url).searchParams);
+    const where = await leadWhere(filters);
+    const result = await prisma.$transaction(async tx => {
+      const total = await tx.lead.count({ where });
+      const pages = Math.max(1, Math.ceil(total / 25)), page = Math.min(filters.page, pages);
+      const leads = await tx.lead.findMany({ where, orderBy: leadOrder(filters.sort), skip: (page - 1) * 25, take: 25 });
+      return { leads, total, page, pages };
+    }, { isolationLevel: 'RepeatableRead' });
+    return Response.json(result);
   } catch (error) { return failure(error); }
 }
 export async function POST(request: Request) {
@@ -20,7 +23,7 @@ export async function POST(request: Request) {
     const name = str(data.name, 'business name', 200);
     const email = normalizeEmail(str(data.email ?? '', 'email', 254, false));
     if (email && !validEmail(email)) throw new HttpError(400, 'Enter a valid email address.');
-    if (email && await prisma.lead.findFirst({ where: { email } })) throw new HttpError(409, 'A lead with this email already exists.');
+    if (email && await prisma.lead.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })) throw new HttpError(409, 'A lead with this email already exists.');
     const phone = str(data.phone ?? '', 'phone', 40, false);
     const category = str(data.category ?? 'Business', 'category', 100);
     const address = str(data.address ?? '', 'location', 300, false);
@@ -28,7 +31,9 @@ export async function POST(request: Request) {
     const emailVerified = data.emailVerified === true;
     if (emailVerified && (!email || !emailSource)) throw new HttpError(400, 'Add a valid email and its source before verifying it.');
     const leadType = data.leadType === 'OUTDATED_WEBSITE' ? 'OUTDATED_WEBSITE' : 'NO_WEBSITE';
-    const lead = await prisma.lead.create({ data: { name, email: email || null, phone: phone || null, category, address, mapsUrl: '', placeId: `manual:${randomUUID()}`, emailSource, emailVerified, leadType, score: leadScore({ leadType, email, emailVerified, phone }) } });
+    const websiteUrl = str(data.websiteUrl ?? '', 'website', 2000, false);
+    if (websiteUrl && !safeWebUrl(websiteUrl)) throw new HttpError(400, 'Use an HTTP or HTTPS website link.');
+    const lead = await prisma.lead.create({ data: { name, email: email || null, phone: phone || null, category, address, mapsUrl: '', placeId: `manual:${randomUUID()}`, emailSource, emailVerified, leadType, websiteUrl: websiteUrl || null, score: leadScore({ leadType, email, emailVerified, phone }) } });
     await recordActivity('LEAD', `Added ${name}.`, lead.id);
     return Response.json({ lead }, { status: 201 });
   } catch (error) { return failure(error); }

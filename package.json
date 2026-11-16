@@ -17,7 +17,11 @@
     "start:all": "node scripts/start.mjs",
     "db:generate": "prisma generate",
     "db:deploy": "prisma migrate deploy",
-    "test:browser": "node scripts/browser-check.mjs"
+    "test:browser": "node scripts/browser-check.mjs",
+    "test:workspace": "node scripts/workspace-check.mjs",
+    "test:navigation": "node scripts/lead-navigation-check.mjs",
+    "test:growth": "node scripts/growth-check.mjs",
+    "preview:isolated": "node scripts/preview.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

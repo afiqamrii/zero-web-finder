@@ -1,7 +1,9 @@
 import { chromium } from 'playwright';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const access = JSON.parse(await readFile('.local/preview-access.json', 'utf8'));
+const { previewAccessPath } = await import('./preview-location.mjs');
+const access = JSON.parse(await readFile(previewAccessPath, 'utf8'));
+assert.equal(new URL(access.url).hostname, '127.0.0.1');
 const label = `Browser QA Café ${Date.now()}`;
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
@@ -11,8 +13,9 @@ page.on('response', response => { if (response.url().includes('/api/') && respon
 try {
   assert.equal((await context.request.get(`${access.url}/api/leads`)).status(), 401);
   await page.goto(access.url); await page.getByLabel('Workspace password').fill(access.password); await page.getByRole('button', { name: 'Open workspace' }).click();
-  await page.getByRole('heading', { name: 'Good things are taking shape.' }).waitFor();
+  await page.getByRole('heading', { name: 'Your next project starts here.' }).waitFor();
   const baseline = await (await context.request.get(`${access.url}/api/dashboard`)).json();
+  assert.equal(baseline.preview, true); assert.equal(baseline.settings.sendingEnabled, false);
   await page.getByRole('button', { name: 'Lead workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Add lead', exact: true }).click();
   await page.getByLabel('Business name', { exact: true }).fill(label); await page.getByLabel('Business type', { exact: true }).fill('Café'); await page.getByLabel('City / address').fill('Petaling Jaya');
@@ -23,11 +26,11 @@ try {
   await page.getByText(expectedRevenue, { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Email campaigns', exact: true }).click(); await page.getByRole('button', { name: 'New campaign', exact: true }).click(); await page.getByLabel('Campaign name').fill('Browser QA introduction'); await page.getByRole('button', { name: 'Save & review' }).click(); await page.getByRole('heading', { name: 'Review your campaign' }).waitFor(); await page.getByRole('dialog').getByText(new RegExp(label)).first().waitFor(); assert.equal(await page.getByRole('button', { name: 'Approve campaign' }).isDisabled(), true); await page.getByRole('button', { name: 'Keep as draft' }).click();
   await page.getByRole('button', { name: 'Automations', exact: true }).click(); await page.getByRole('button', { name: 'New lead search', exact: true }).click(); await page.getByLabel('Business type', { exact: true }).fill('Café'); await page.getByRole('button', { name: 'Queue search', exact: true }).click(); await page.getByRole('cell', { name: 'queued', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByLabel('Verified sender email').waitFor(); assert.equal(await page.getByLabel('Verified sender email').inputValue(), 'afiqamri03@gmail.com');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await page.getByLabel('Sender email', { exact: true }).waitFor(); assert.equal(await page.getByLabel('Sender email', { exact: true }).inputValue(), 'afiqamri03@gmail.com');
   await page.getByRole('button', { name: 'Activity & delivery', exact: true }).click(); await page.getByRole('heading', { name: 'Workspace timeline' }).waitFor();
   const csrf = await context.request.patch(`${access.url}/api/leads/unknown`, { data: { status: 'WON' }, headers: { Origin: 'https://evil.test' } }); assert.equal(csrf.status(), 403);
   await mkdir('test-results', { recursive: true });
-  await page.getByRole('button', { name: 'Overview', exact: true }).click(); await page.getByRole('heading', { name: 'Good things are taking shape.' }).waitFor();
+  await page.getByRole('button', { name: 'Overview', exact: true }).click(); await page.getByRole('heading', { name: 'Your next project starts here.' }).waitFor();
   await page.screenshot({ path: 'test-results/dashboard-desktop.png', fullPage: true });
   for (let i = 0; i < 5; i++) { const start = performance.now(); const r = await context.request.get(`${access.url}/api/dashboard`); assert.equal(r.status(), 200); timings.push(Math.round(performance.now() - start)); }
   await page.setViewportSize({ width: 390, height: 844 });
