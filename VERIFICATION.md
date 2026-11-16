@@ -12,6 +12,16 @@ Validation before hosted deployment: **158 tests in 18 files passed**, productio
 
 Earlier sections below are historical phase records and their connection/deployment statements describe those phases only.
 
+### Hosted launch result
+
+The existing Free Render service successfully built and deployed release `d61843b6a8e2249d257c8680cb8ae9cf5f33f3cf` at https://zero-web-finder.onrender.com. Render's live Blueprint validator rejected the extended shutdown setting for Free services; follow-up `26d9973` removes that paid-only setting and corrects the documentation/comment without changing runtime behavior. The corrected Blueprint reports its resources up to date. Both service and Blueprint track `codex/growth-launch`, with automatic deployment/sync disabled. No paid hosting was purchased.
+
+**All 15 hosted smoke checks passed** at 15:21 UTC on 16 November 2026: health/login/privacy return 200, unauthenticated lead access returns 401, the dashboard redirects to login, and the owner receives a Secure/HttpOnly/SameSite=Strict session cookie. Authenticated reads show all 22 recovered leads. Gmail connection testing succeeds as `afiqamri03@gmail.com`. The worker wrote its heartbeat automatically with no reported error after the initial startup connection retry. No manual worker invocation was used for this verification.
+
+The live Settings page separately confirmed Gmail access and saved the chosen sender name, Afiq Web Studio. The postal address remains empty for the owner to enter privately. Sending and automatic follow-ups remain disabled; campaigns, discovery jobs, and email messages are all zero. No client or test message was sent, and no lead was marked verified. Free-tier Chromium discovery capacity and an actual Gmail send remain untested.
+
+The live desktop dashboard was visually checked with 22 leads, zero invented revenue, and Worker connected. Private evidence is saved in `.local/launch/hosted-verification.json`, `live-dashboard.png`, and `live-settings.png`. The owner login is in ignored `owner-access.json` in the same directory. Free instances sleep when inactive and cannot promise continuous automation.
+
 ## Growth tools and local analysis — 16 November 2026
 
 This follow-up adds usable workflows to the existing application. The interactive preview is a temporary, loopback-only workspace with disconnected sending accounts. A separate temporary instance is used for browser QA. No hosted database was migrated, no hosting was purchased, and no real email was sent.

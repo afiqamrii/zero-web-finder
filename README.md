@@ -2,6 +2,14 @@
 
 A private growth workspace for Afiq Amri: discover businesses, qualify contacts, approve email campaigns, automate outreach, and track project revenue.
 
+## Live workspace
+
+Open [Zero Web Finder](https://zero-web-finder.onrender.com). The protected release went live on 16 November 2026 with all 22 original leads, verified Gmail access for `afiqamri03@gmail.com`, and a working automation heartbeat. The launch machine's private login details are in ignored `.local/launch/owner-access.json`; credentials are never part of this repository.
+
+In Settings, enter your real business postal address, review the sender and offer, then enable sending when ready. Verify each contact's email and source, review the campaign's frozen messages, and explicitly approve the campaign. Sending and follow-ups are currently off; there are no approved campaigns or scheduled discovery jobs. No launch test sent an email.
+
+The existing Render service remains Free. It sleeps after inactivity, so automatic work runs only while the instance is awake. Continuous background operation requires an always-on host. Automatic deployments and Blueprint sync are off; both track `codex/growth-launch`. See the hosting section for Free-tier limits.
+
 ## What is included
 
 - Overview with real lead counts, open pipeline value, recorded revenue, worker health, sending allowance, and recent activity.
@@ -149,7 +157,7 @@ After connecting Render, create a Blueprint using `render.yaml` for the selected
 
 Alternatively, run `npm run start` and `npm run worker` as separately supervised processes. `WORKER_APP_URL` selects the web app address; the default is `http://127.0.0.1:3000`. For an always-on host, an external scheduler can POST to `/api/worker` with `Authorization: Bearer <CRON_SECRET>` every minute. That route is not public without the secret. The database lease serializes overlapping runs and survives process restarts. **Run queue now** is available only inside the authenticated dashboard and still processes only eligible, approved campaigns.
 
-`/api/health` reports web-process health. The dashboard worker heartbeat reports automation activity separately. Keep the database and app in nearby regions, use the appropriate Supabase connection pooler, and use a session/direct connection for migrations. No deployment has been performed by this implementation.
+`/api/health` reports web-process health. The dashboard worker heartbeat reports automation activity separately. Keep the database and app in nearby regions, use the appropriate Supabase connection pooler, and use a session/direct connection for migrations. The existing Render service is live at the workspace link above; the hosted launch checks passed on 16 November 2026.
 
 ### Optional Resend provider
 
