@@ -125,11 +125,11 @@ npm run build
 npm run start:all
 ```
 
-`start:all` runs the web app and the independent worker. It validates the worker secret and URL before opening the web server, then restarts a stopped worker after five seconds. On shutdown, the worker stops scheduling new runs and keeps its active request open so Next can finish it. The supervisor allows up to 290 seconds before forced termination, within Render's configured 300-second window. The Docker image uses `tini` to forward signals and reap orphaned Chromium processes. Apply migrations before starting the upgraded app.
+`start:all` runs the web app and the independent worker. It validates the worker secret and URL before opening the web server, then restarts a stopped worker after five seconds. On shutdown, the worker stops scheduling new runs and keeps its active request open so Next can finish it. The supervisor allows up to 290 seconds before forced termination; the optional paid Blueprint configures a 300-second platform window. Free hosting does not support that setting and can terminate work sooner. Interrupted Gmail attempts move to Review instead of being automatically resent. The Docker image uses `tini` to forward signals and reap orphaned Chromium processes. Apply migrations before starting the upgraded app.
 
 ### Free online mode
 
-`render.yaml` is the selected no-subscription hosting configuration: one Free Docker web service in Singapore, using `codex/growth-launch`. It runs the dashboard and worker in the same service, keeps automatic deployments off, and allows a 300-second shutdown window. Use the existing PostgreSQL connection; this Blueprint does not create a database or a paid background-worker service.
+`render.yaml` is the selected no-subscription hosting configuration: one Free Docker web service in Singapore, using `codex/growth-launch`. It runs the dashboard and worker in the same service and keeps automatic deployments off. The Free tier uses Render's default shutdown window; extended shutdown is unavailable. Use the existing PostgreSQL connection; this Blueprint does not create a database or a paid background-worker service.
 
 Render Free [sleeps after 15 minutes without inbound traffic](https://render.com/docs/free#spinning-down-on-idle), then takes about a minute to wake on the next real request. The internal worker cannot wake a stopped instance. Approved campaigns can process while the app is awake and their sending window, daily limit, verified-contact rules, and master sending switch allow it. During sleep, schedules, follow-ups, and reply checks wait. Saved tasks and campaign state remain in PostgreSQL. This mode does not provide continuous automation or production availability guarantees.
 

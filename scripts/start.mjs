@@ -28,7 +28,8 @@ function stop(code = 0) {
   stopping = true;
   exitCode = code;
   clearTimeout(restartTimer);
-  // Allow the active web request to finish before Render's 300-second deadline.
+  // Drain active work within the paid Blueprint's 300-second window. Free
+  // hosting can enforce a shorter platform deadline and terminate us first.
   shutdownTimer = setTimeout(() => { app.kill('SIGKILL'); worker?.kill('SIGKILL'); process.exit(exitCode || 1); }, 290000);
   app.kill('SIGTERM'); worker?.kill('SIGTERM');
   finishShutdown();
